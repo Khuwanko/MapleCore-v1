@@ -60,49 +60,81 @@ npm install --legacy-peer-deps
 ### Step 3: Configure Environment
 Create a `.env.local` file:
 ```env
-# Server name for the logo in the user dashboard
-NEXT_PUBLIC_SERVER_NAME=MapleKaede
+# ========================================
+# SERVER CONFIGURATION
+# ========================================
+NEXT_PUBLIC_SERVER_NAME=MapleCore
+NEXT_PUBLIC_SERVER_VERSION=v83 #just use 83 anyversion wont work unless some database setup cosmic
+NODE_ENV=production
 
-# Database Configuration (if MySQL is on same machine)
+# ========================================
+# DATABASE CONFIGURATION
+# ========================================
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=root
 DB_NAME=cosmic
 
-# JWT Secret
+# ========================================
+# SECURITY
+# ========================================
 JWT_SECRET=your-super-secret-jwt-key-here-make-it-random
 
-# VOTE SYSTEM
-GTOP100_PINGBACK_KEY=(You can generate any key)
-
-# Server URL - CHANGE THIS TO YOUR PUBLIC IP OR DOMAIN
-NEXT_PUBLIC_API_URL=http://your-public-ip:3000
+# ========================================
+# NETWORK CONFIGURATION
+# ========================================
+# Server URL - Your public IP or domain
+NEXT_PUBLIC_API_URL=http://5.55.55.55:3000
 # Examples:
-# NEXT_PUBLIC_API_URL=http://local-network:3000
-# NEXT_PUBLIC_API_URL=http://your-public-ip:3000
-# NEXT_PUBLIC_API_URL=https://yourdomain.com     (domain name)
+# NEXT_PUBLIC_API_URL=http://192.16x.x.x:3000  (local network)
+# NEXT_PUBLIC_API_URL=https://yourdomain.com     (domain with SSL)
 
-# Hostname Configuration (NEW)
-NEXT_PUBLIC_HOSTNAME=your-public-ip
+# Hostname Configuration
+NEXT_PUBLIC_HOSTNAME=5.55.55.55
 # Examples:
-# NEXT_PUBLIC_HOSTNAME=192.168.1.100
-# NEXT_PUBLIC_HOSTNAME=your-public-ip
-# NEXT_PUBLIC_HOSTNAME=yourdomain.com
+# NEXT_PUBLIC_HOSTNAME=192.16x.x.x  (local)
+# NEXT_PUBLIC_HOSTNAME=yourdomain.com (domain)
+# CORS Configuration - Allowed origins for API access
+ALLOWED_ORIGINS=http://localhost:3000,http://192.16x.x.x:3000,http://5.55.55.55:3000
+# Add more origins separated by commas as needed
 
-# CORS Configuration (NEW)
-ALLOWED_ORIGINS=http://localhost:3000,http://192.168.1.100:3000,http://your-public-ip:3000
-# Example:
-# ALLOWED_ORIGINS=http://localhost:3000,http://your-public-ip:3000,https://yourdomain.com
+# ========================================
+# VOTE SYSTEM CONFIGURATION
+# ========================================
+# Gtop100 Settings
+GTOP100_PINGBACK_KEY=
+GTOP100_SITE_ID=
+GTOP100_VOTE_URL=https://gtop100.com/topsites/MapleStory/sitedetails/yourvotehere
+GTOP100_NX_REWARD=
+GTOP100_COOLDOWN_HOURS=24
 
+# Vote Site Display Configuration
+VOTE_SITE_1_NAME=gtop100
+VOTE_SITE_1_DISPLAY=Gtop100
+VOTE_SITE_1_ICON=🏆
+VOTE_SITE_1_COLOR_FROM=orange-500
+VOTE_SITE_1_COLOR_TO=orange-400
+
+# Vote System Features
+ENABLE_VOTE_LOGGING=true
+ENABLE_VOTE_WEBHOOK_DEBUG=false
+ENABLE_VOTE_WEBHOOK_LOGS=true
+
+# Vote Security Settings
+VOTE_WEBHOOK_MAX_RETRIES=3
+VOTE_WEBHOOK_TIMEOUT_MS=30000
+
+# ========================================
+# INTEGRATIONS
+# ========================================
 # Discord Webhook (optional)
 DISCORD_WEBHOOK_URL=your_discord_webhook_url_here
 
-# Next.js Environment
-NODE_ENV=production
-
-# Development Settings (NEW)
-# Set to true to allow external connections during development
+# ========================================
+# DEVELOPMENT SETTINGS
+# ========================================
+# Disable Next.js telemetry
 NEXT_TELEMETRY_DISABLED=1
 ```
 

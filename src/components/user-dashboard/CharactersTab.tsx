@@ -173,7 +173,7 @@ const SimpleCharacterDisplay: React.FC<{
   );
 };
 
-// Enhanced MapleStory.io Character Renderer
+// Enhanced MapleStory.io Character Renderer - FIXED VERSION
 const MapleStoryCharacterRenderer: React.FC<{
   character: any;
   className?: string;
@@ -184,12 +184,14 @@ const MapleStoryCharacterRenderer: React.FC<{
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [isImageReady, setIsImageReady] = useState(false);
 
   useEffect(() => {
     const generateCharacterImage = async () => {
       try {
         setIsLoading(true);
         setError(false);
+        setIsImageReady(false);
 
         const { mapleStoryAPI } = await import('@/services/maplestory-api');
 
@@ -206,12 +208,23 @@ const MapleStoryCharacterRenderer: React.FC<{
         const testResult = await mapleStoryAPI.testCharacterEndpoint(characterOptions);
         
         if (testResult.success && testResult.url) {
-          setImageUrl(testResult.url);
+          // Preload the image before setting URL
+          const img = new Image();
+          img.onload = () => {
+            setImageUrl(testResult.url || null);  // Fixed: ensure it's never undefined
+            setIsLoading(false);
+            // Small delay to ensure image is rendered before showing
+            setTimeout(() => setIsImageReady(true), 50);
+          };
+          img.onerror = () => {
+            setError(true);
+            setIsLoading(false);
+          };
+          img.src = testResult.url;
         } else {
           setError(true);
+          setIsLoading(false);
         }
-        
-        setIsLoading(false);
       } catch (err) {
         console.error('Error generating character image:', err);
         setError(true);
@@ -225,11 +238,12 @@ const MapleStoryCharacterRenderer: React.FC<{
   const handleImageError = () => {
     setError(true);
     setIsLoading(false);
+    setIsImageReady(false);
   };
 
   const handleImageLoad = () => {
-    setIsLoading(false);
-    setError(false);
+    // Image is already loaded in the effect, this is just a backup
+    setIsImageReady(true);
   };
 
   if (isLoading) {
@@ -270,7 +284,9 @@ const MapleStoryCharacterRenderer: React.FC<{
           left: '50%',
           transform: `translateX(-50%) translateX(${x}px) scale(${size})`,
           transformOrigin: 'bottom center',
-          transition: 'transform 0.3s ease'
+          // Only apply transition to opacity, not transform
+          transition: isImageReady ? 'opacity 0.3s ease' : 'none',
+          opacity: isImageReady ? 1 : 0
         }}
       >
         <img
@@ -279,7 +295,7 @@ const MapleStoryCharacterRenderer: React.FC<{
           className="block drop-shadow-lg"
           onLoad={handleImageLoad}
           onError={handleImageError}
-          loading="lazy"
+          loading="eager"
           style={{ 
             imageRendering: 'pixelated',
             maxHeight: 'none',
@@ -306,6 +322,17 @@ const CharactersTab: React.FC<CharactersTabProps> = ({
 
   return (
     <div className="space-y-8">
+      <style jsx>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        
+        .animate-shimmer {
+          animation: shimmer 2s infinite;
+        }
+      `}</style>
+      
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <div className="text-center">

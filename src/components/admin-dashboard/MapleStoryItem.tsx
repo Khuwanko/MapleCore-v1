@@ -1,7 +1,7 @@
 // src/components/admin-dashboard/MapleStoryItem.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { mapleStoryAPI } from '@/services/maplestory-api';
 
 interface ItemStats {
@@ -31,8 +31,16 @@ interface MapleStoryItemProps {
   equipStats?: ItemStats | null;
   className?: string;
   showTooltip?: boolean;
-  slotPosition?: number; // Add this to detect cash items
+  slotPosition?: number;
 }
+
+// Global name cache - persists across component instances
+const globalNameCache = new Map<number, string>();
+// Track items that are currently being fetched to prevent duplicate requests
+const fetchingItems = new Set<number>();
+
+// Image cache to prevent re-fetching
+const imageCache = new Map<string, boolean>();
 
 const MapleStoryItem: React.FC<MapleStoryItemProps> = ({
   itemId,
@@ -46,56 +54,178 @@ const MapleStoryItem: React.FC<MapleStoryItemProps> = ({
 }) => {
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [itemName, setItemName] = useState<string>('');
-  const [nameLoading, setNameLoading] = useState(true);
+  const [itemName, setItemName] = useState<string>(() => {
+    // Check cache immediately on mount
+    return globalNameCache.get(itemId) || '';
+  });
+  const [nameLoading, setNameLoading] = useState(() => {
+    // Only loading if not in cache
+    return !globalNameCache.has(itemId);
+  });
+  const [showTooltipState, setShowTooltipState] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 3;
   
-  // Direct URL to MapleStory.io
-  const iconUrl = `https://maplestory.io/api/GMS/255/item/${itemId}/icon`;
+  // Use a more reliable URL format
+  const getIconUrl = (id: number, version: string = '241') => {
+    return `https://maplestory.io/api/GMS/${version}/item/${id}/icon`;
+  };
 
-  // Check if this is a cash item (position <= -101)
+  // Check if this is a cash item
   const isCashItem = slotPosition !== undefined && slotPosition <= -101;
 
-  // Fetch item name using the MapleStory API service
+  // Initialize image URL
   useEffect(() => {
-    let mounted = true;
+    const url = getIconUrl(itemId);
+    setImageUrl(url);
+    
+    // Check if image was previously cached as successful
+    if (imageCache.get(url)) {
+      setImageLoaded(true);
+      setImageError(false);
+    }
+  }, [itemId]);
 
+  // Fetch item name - FIXED VERSION
+  useEffect(() => {
+    mountedRef.current = true;
+    
+    // If already in cache, we're done
+    if (globalNameCache.has(itemId)) {
+      const cachedName = globalNameCache.get(itemId)!;
+      setItemName(cachedName);
+      setNameLoading(false);
+      return;
+    }
+
+    // If already being fetched by another component, wait a bit then check cache again
+    if (fetchingItems.has(itemId)) {
+      const checkInterval = setInterval(() => {
+        if (globalNameCache.has(itemId)) {
+          const cachedName = globalNameCache.get(itemId)!;
+          setItemName(cachedName);
+          setNameLoading(false);
+          clearInterval(checkInterval);
+        }
+      }, 100);
+      
+      // Stop checking after 2 seconds and use fallback
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        if (!globalNameCache.has(itemId) && mountedRef.current) {
+          const fallbackName = `Item #${itemId}`;
+          globalNameCache.set(itemId, fallbackName);
+          setItemName(fallbackName);
+          setNameLoading(false);
+        }
+      }, 2000);
+      
+      return () => clearInterval(checkInterval);
+    }
+
+    // Mark as fetching
+    fetchingItems.add(itemId);
+
+    // Set a hard timeout to ensure we never get stuck loading
+    fetchTimeoutRef.current = setTimeout(() => {
+      if (mountedRef.current && nameLoading) {
+        const fallbackName = `Item #${itemId}`;
+        globalNameCache.set(itemId, fallbackName);
+        setItemName(fallbackName);
+        setNameLoading(false);
+        fetchingItems.delete(itemId);
+      }
+    }, 1500); // 1.5 second hard limit
+
+    // Try to fetch the name
     const fetchItemName = async () => {
       try {
-        setNameLoading(true);
+        // Don't even try if we already have a name
+        if (globalNameCache.has(itemId)) {
+          fetchingItems.delete(itemId);
+          return;
+        }
+
         const itemData = await mapleStoryAPI.getCachedItemData(itemId);
         
-        if (itemData && mounted) {
+        if (!mountedRef.current) {
+          fetchingItems.delete(itemId);
+          return;
+        }
+
+        if (itemData && itemData.name) {
+          // Cache the name globally
+          globalNameCache.set(itemId, itemData.name);
           setItemName(itemData.name);
-        } else if (mounted) {
-          setItemName(`Item #${itemId}`);
+        } else {
+          // Use fallback
+          const fallbackName = `Item #${itemId}`;
+          globalNameCache.set(itemId, fallbackName);
+          setItemName(fallbackName);
         }
       } catch (error) {
-        console.log(`Could not fetch name for item ${itemId}`);
-        if (mounted) {
-          setItemName(`Item #${itemId}`);
+        console.log(`Error fetching name for item ${itemId}:`, error);
+        if (mountedRef.current) {
+          const fallbackName = `Item #${itemId}`;
+          globalNameCache.set(itemId, fallbackName);
+          setItemName(fallbackName);
         }
       } finally {
-        if (mounted) {
+        if (mountedRef.current) {
           setNameLoading(false);
+        }
+        fetchingItems.delete(itemId);
+        if (fetchTimeoutRef.current) {
+          clearTimeout(fetchTimeoutRef.current);
         }
       }
     };
 
+    // Start fetching
     fetchItemName();
 
     return () => {
-      mounted = false;
+      mountedRef.current = false;
+      fetchingItems.delete(itemId);
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+      }
     };
-  }, [itemId]);
+  }, [itemId, nameLoading]);
 
   const handleImageError = () => {
+    if (!mountedRef.current) return;
+    
+    // Try alternate versions before giving up
+    if (retryCountRef.current < MAX_RETRIES) {
+      retryCountRef.current++;
+      const versions = ['241', '255', '240', 'latest'];
+      const nextVersion = versions[retryCountRef.current];
+      
+      if (nextVersion) {
+        console.log(`Retrying item ${itemId} with version ${nextVersion}`);
+        const newUrl = getIconUrl(itemId, nextVersion);
+        setImageUrl(newUrl);
+        return;
+      }
+    }
+    
     setImageError(true);
     setImageLoaded(true);
   };
 
   const handleImageLoad = () => {
+    if (!mountedRef.current) return;
     setImageLoaded(true);
     setImageError(false);
+    // Cache successful URL
+    if (imageUrl) {
+      imageCache.set(imageUrl, true);
+    }
+    retryCountRef.current = 0;
   };
 
   // Helper function to check if a stat should be displayed
@@ -123,30 +253,54 @@ const MapleStoryItem: React.FC<MapleStoryItemProps> = ({
     shouldDisplayStat(equipStats.level)
   );
 
+  // Handle tooltip visibility
+  const handleMouseEnter = () => {
+    if (showTooltip) {
+      setShowTooltipState(true);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setShowTooltipState(false);
+  };
+
+  // Display name in tooltip - ensure we never show "Loading..." forever
+  const displayName = itemName || `Item #${itemId}`;
+
   return (
-    <div className={`relative group ${className}`}>
+    <div 
+      className={`relative group ${className}`}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <div className="w-full h-full flex items-center justify-center p-1">
-        {!imageError ? (
+        {!imageError && imageUrl ? (
           <>
             {!imageLoaded && (
-              // Loading placeholder
+              // Loading placeholder with spinner
               <div className="absolute inset-0 bg-gray-100 rounded animate-pulse flex items-center justify-center">
                 <div className="w-6 h-6 border-2 border-gray-300 border-t-red-500 rounded-full animate-spin" />
               </div>
             )}
             <img
-              src={iconUrl}
-              alt={itemName || `Item ${itemId}`}
+              key={imageUrl} // Force re-render on URL change
+              src={imageUrl}
+              alt={displayName}
               className={`w-full h-full object-contain ${imageLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
               onLoad={handleImageLoad}
               onError={handleImageError}
-              loading="eager"
+              loading="lazy"
+              decoding="async"
             />
           </>
         ) : (
-          // Error/Fallback state
+          // Error/Fallback state - show item ID or loading
           <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 rounded flex items-center justify-center text-[10px] font-bold text-gray-600 shadow-sm">
-            {itemId}
+            {!imageUrl && !imageError ? (
+              <div className="w-6 h-6 border-2 border-gray-300 border-t-red-500 rounded-full animate-spin" />
+            ) : (
+              itemId
+            )}
           </div>
         )}
       </div>
@@ -159,19 +313,16 @@ const MapleStoryItem: React.FC<MapleStoryItemProps> = ({
       )}
 
       {/* Hover Tooltip */}
-      {showTooltip && (
-        <div className="absolute z-[99999] bottom-full left-1/2 transform -translate-x-1/2 mb-2 p-3 bg-white border border-gray-200 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" 
-             style={{ 
-               minWidth: '200px',
-               position: 'absolute',
-               zIndex: 99999
-             }}>
+      {showTooltip && showTooltipState && (
+        <div 
+          className="absolute z-[99999] bottom-full left-1/2 transform -translate-x-1/2 mb-2 p-3 bg-white border border-gray-200 rounded-lg shadow-xl transition-opacity duration-200 pointer-events-none whitespace-nowrap" 
+          style={{ 
+            minWidth: '200px',
+            maxWidth: '300px'
+          }}
+        >
           <div className="text-red-600 font-bold text-sm mb-1">
-            {nameLoading ? (
-              <span className="text-gray-400 italic">Loading...</span>
-            ) : (
-              itemName || `Item #${itemId}`
-            )}
+            {displayName}
           </div>
           {slotName && (
             <div className="text-gray-500 text-xs mb-1">{slotName}</div>
@@ -180,8 +331,11 @@ const MapleStoryItem: React.FC<MapleStoryItemProps> = ({
             <div>Item ID: <span className="font-medium">{itemId}</span></div>
             {quantity > 1 && <div>Quantity: <span className="font-medium">{quantity.toLocaleString()}</span></div>}
             {giftFrom && <div>From: <span className="font-medium">{giftFrom}</span></div>}
+            {isCashItem && (
+              <div className="text-purple-600 font-medium">Cash Item</div>
+            )}
             
-            {/* Equipment Stats - Only show for non-cash items with valid stats */}
+            {/* Equipment Stats */}
             {hasValidStats && (
               <div className="mt-2 pt-2 border-t border-gray-200">
                 <div className="font-bold text-gray-700 mb-1">Stats:</div>
@@ -214,6 +368,20 @@ const MapleStoryItem: React.FC<MapleStoryItemProps> = ({
       )}
     </div>
   );
+};
+
+// Export a function to clear the name cache if needed
+export const clearItemNameCache = () => {
+  globalNameCache.clear();
+  fetchingItems.clear();
+};
+
+// Pre-populate cache with common item names if it was very slow u can use this.(optional)
+export const preloadCommonItems = () => {
+  // You can add common items here if you know them
+  // For example:
+  // globalNameCache.set(1002043, 'Zakum Helmet');
+  // globalNameCache.set(1102041, 'Pink Adventurer Cape');
 };
 
 export default MapleStoryItem;

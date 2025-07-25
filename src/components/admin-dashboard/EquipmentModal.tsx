@@ -1,11 +1,12 @@
 // src/components/admin-dashboard/EquipmentModal.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, Shield, Swords, Search, User, Coins, Sparkles
 } from 'lucide-react';
 import { adminAPI } from '@/services/api';
+import { mapleStoryAPI } from '@/services/maplestory-api';
 import MapleStoryItem from './MapleStoryItem';
 
 interface EquipmentStats {
@@ -74,6 +75,10 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
   const [selectedCharacter, setSelectedCharacter] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'main' | 'cash'>('main');
+  const [isCharacterLoading, setIsCharacterLoading] = useState(false);
+  const [dataVersion, setDataVersion] = useState(0);
+  const [hoveredSlot, setHoveredSlot] = useState<number | null>(null);
+  const mountedRef = useRef(true);
 
   // Equipment slot positions (negative values in database)
   const equipSlots: { [key: string]: string } = {
@@ -166,65 +171,107 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
   ];
 
   useEffect(() => {
-    if (isOpen) {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && mountedRef.current) {
       fetchEquipment();
     }
   }, [isOpen, userId]);
 
   const fetchEquipment = async () => {
+    if (!mountedRef.current) return;
+    
     setLoading(true);
     try {
       const response = await adminAPI.getUserInventory(userId);
-      if (response.ok) {
+      if (response.ok && mountedRef.current) {
         setCharacters(response.data.characters);
-        if (response.data.characters.length > 0) {
+        setDataVersion(prev => prev + 1);
+        if (response.data.characters.length > 0 && !selectedCharacter) {
           setSelectedCharacter(response.data.characters[0].id);
         }
       }
     } catch (error) {
       console.error('Failed to fetch equipment:', error);
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleCharacterChange = (newCharId: number) => {
+    setIsCharacterLoading(true);
+    setSelectedCharacter(newCharId);
+    
+    setTimeout(() => {
+      if (mountedRef.current) {
+        setIsCharacterLoading(false);
+      }
+    }, 300);
+  };
+
+  const handleTabChange = (tab: 'main' | 'cash') => {
+    setActiveTab(tab);
+    setDataVersion(prev => prev + 1);
   };
 
   const currentCharacter = characters.find(c => c.id === selectedCharacter);
   const equippedItems = currentCharacter?.equipped || [];
   
-  // Create a map of equipped items by position
   const equippedMap = new Map<number, EquipmentItem>();
   equippedItems.forEach(item => {
     equippedMap.set(item.position, item);
   });
 
-  // Check if there are any cash items equipped
   const hasCashItems = equippedItems.some(item => 
     item.position <= -101 && item.position >= -114
   );
+
+  useEffect(() => {
+    if (currentCharacter && equippedItems.length > 0 && !isCharacterLoading) {
+      const itemIds = equippedItems.map(item => item.itemid);
+      const uniqueIds = [...new Set(itemIds)];
+      if (uniqueIds.length > 0) {
+        mapleStoryAPI.prefetchItems(uniqueIds).catch(console.error);
+      }
+    }
+  }, [currentCharacter?.id, dataVersion]);
 
   if (!isOpen) return null;
 
   const renderEquipmentSlot = (position: number, slotName: string) => {
     const item = equippedMap.get(position);
+    const isHovered = hoveredSlot === position;
     
     return (
-      <div className="text-center relative" style={{ zIndex: 1 }}>
+      <div 
+        className={`text-center ${isHovered ? 'relative z-[9999]' : 'relative z-10'}`}
+        onMouseEnter={() => setHoveredSlot(position)}
+        onMouseLeave={() => setHoveredSlot(null)}
+      >
         <div className="text-xs text-gray-500 font-semibold mb-2 truncate" style={{ width: '70px' }}>
           {slotName}
         </div>
-        <div className="w-14 h-14 mx-auto bg-gradient-to-br from-slate-50 to-slate-100 border-2 border-slate-200 rounded-xl p-1.5 hover:border-red-400 hover:shadow-lg hover:scale-110 transition-all duration-300 cursor-pointer relative group overflow-visible">
+        <div className={`w-14 h-14 mx-auto bg-gradient-to-br from-slate-50 to-slate-100 border-2 border-slate-200 rounded-xl p-1.5 hover:border-red-400 hover:shadow-lg hover:scale-110 transition-all duration-300 cursor-pointer group ${isHovered ? 'z-[9999] relative' : ''}`}>
           {item ? (
-            <div className="relative w-full h-full overflow-visible" style={{ zIndex: 10 }}>
+            <div className={`w-full h-full ${isHovered ? 'z-[9999] relative' : ''}`}>
               <MapleStoryItem
+                key={`equip-${item.inventoryitemid}-${item.itemid}`}
                 itemId={item.itemid}
                 quantity={item.quantity}
                 slotName={slotName}
                 giftFrom={item.giftFrom}
                 equipStats={item.equipStats}
                 slotPosition={position}
-                className="w-full h-full relative z-20"
+                className="w-full h-full"
+                showTooltip={true}
               />
-              {/* Enhanced glow effect for equipped items */}
               <div className="absolute inset-0 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
             </div>
           ) : (
@@ -238,16 +285,16 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ zIndex: 100 }}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div 
         className="fixed inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
       
-      <div className="relative z-[101]" style={{ width: '720px', zIndex: 101 }}>
-        {/* Enhanced Modal Window */}
-        <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-visible backdrop-blur-xl">
-          {/* Enhanced Title Bar */}
+      <div className="relative z-[101]" style={{ width: '720px' }}>
+        {/* Modal Window */}
+        <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 backdrop-blur-xl">
+          {/* Title Bar */}
           <div className="bg-gradient-to-r from-red-50 via-red-100 to-pink-50 px-8 py-5 flex items-center justify-between border-b border-gray-200">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-pink-600 rounded-2xl flex items-center justify-center shadow-lg">
@@ -270,16 +317,17 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
             </button>
           </div>
 
-          {/* Enhanced Content */}
-          <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-8" style={{ position: 'relative', zIndex: 1 }}>
+          {/* Content */}
+          <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-8">
             {/* Character Selector */}
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-5">
                 {characters.length > 0 && (
                   <select
                     value={selectedCharacter || ''}
-                    onChange={(e) => setSelectedCharacter(Number(e.target.value))}
-                    className="bg-white text-gray-900 px-5 py-3 rounded-xl border-2 border-gray-200 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 shadow-sm hover:shadow-md transition-all"
+                    onChange={(e) => handleCharacterChange(Number(e.target.value))}
+                    disabled={isCharacterLoading}
+                    className="bg-white text-gray-900 px-5 py-3 rounded-xl border-2 border-gray-200 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {characters.map((char) => (
                       <option key={char.id} value={char.id}>
@@ -298,11 +346,11 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
               </div>
             </div>
 
-            {/* Enhanced Tab Navigation */}
+            {/* Tab Navigation */}
             {hasCashItems && (
               <div className="flex gap-3 mb-6 p-1 bg-white rounded-2xl border border-gray-200 shadow-sm">
                 <button
-                  onClick={() => setActiveTab('main')}
+                  onClick={() => handleTabChange('main')}
                   className={`flex-1 px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 ${
                     activeTab === 'main'
                       ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg transform scale-[1.02]'
@@ -313,7 +361,7 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
                   Main Equipment
                 </button>
                 <button
-                  onClick={() => setActiveTab('cash')}
+                  onClick={() => handleTabChange('cash')}
                   className={`flex-1 px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 ${
                     activeTab === 'cash'
                       ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg transform scale-[1.02]'
@@ -326,17 +374,17 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
               </div>
             )}
 
-            {loading ? (
+            {loading || isCharacterLoading ? (
               <div className="flex items-center justify-center h-96">
                 <div className="text-center">
                   <div className="w-16 h-16 border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin mx-auto mb-6"></div>
-                  <p className="text-gray-600 font-medium text-lg">Loading equipment...</p>
+                  <p className="text-gray-600 font-medium text-lg">{isCharacterLoading ? 'Switching character...' : 'Loading equipment...'}</p>
                 </div>
               </div>
             ) : activeTab === 'main' ? (
-              <div className="grid grid-cols-5 gap-8">
+              <div key={`equipment-main-${selectedCharacter}-${dataVersion}`} className="grid grid-cols-5 gap-8">
                 {/* Main Equipment - 3 columns */}
-                <div className="col-span-3 bg-white rounded-2xl p-6 border border-gray-200 shadow-lg overflow-visible" style={{ position: 'relative', zIndex: 1 }}>
+                <div className="col-span-3 bg-white rounded-2xl p-6 border border-gray-200 shadow-lg">
                   <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-3">
                     <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center">
                       <Swords className="w-5 h-5 text-white" />
@@ -344,16 +392,14 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
                     Main Equipment
                   </h3>
                   
-                  {/* Perfect Character Equipment Layout */}
-                  <div className="relative mx-auto overflow-visible" style={{ width: '350px', height: '400px', position: 'relative', zIndex: 1 }}>
+                  <div className="relative mx-auto" style={{ width: '350px', height: '400px' }}>
                     {mainSlots.map(slot => (
                       <div
-                        key={slot.position}
-                        className="absolute overflow-visible"
+                        key={`main-slot-${slot.position}`}
+                        className="absolute"
                         style={{
                           top: `${slot.row * 80}px`,
-                          left: `${slot.col * 70}px`,
-                          zIndex: 10
+                          left: `${slot.col * 70}px`
                         }}
                       >
                         {renderEquipmentSlot(slot.position, slot.name)}
@@ -363,7 +409,7 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
                 </div>
 
                 {/* Accessories - 2 columns */}
-                <div className="col-span-2 bg-white rounded-2xl p-6 border border-gray-200 shadow-lg overflow-visible" style={{ position: 'relative', zIndex: 1 }}>
+                <div className="col-span-2 bg-white rounded-2xl p-6 border border-gray-200 shadow-lg">
                   <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-3">
                     <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
                       <Shield className="w-5 h-5 text-white" />
@@ -371,16 +417,14 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
                     Accessories
                   </h3>
                   
-                  {/* Accessories Grid */}
-                  <div className="relative mx-auto overflow-visible" style={{ width: '150px', height: '400px', position: 'relative', zIndex: 1 }}>
+                  <div className="relative mx-auto" style={{ width: '150px', height: '400px' }}>
                     {accessorySlots.map(slot => (
                       <div
-                        key={slot.position}
-                        className="absolute overflow-visible"
+                        key={`acc-slot-${slot.position}`}
+                        className="absolute"
                         style={{
                           top: `${slot.row * 80}px`,
-                          left: `${slot.col * 75}px`,
-                          zIndex: 10
+                          left: `${slot.col * 75}px`
                         }}
                       >
                         {renderEquipmentSlot(slot.position, slot.name)}
@@ -390,7 +434,7 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-lg overflow-visible" style={{ position: 'relative', zIndex: 1 }}>
+              <div key={`equipment-cash-${selectedCharacter}-${dataVersion}`} className="bg-white rounded-2xl p-6 border border-gray-200 shadow-lg">
                 <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-3">
                   <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
                     <Coins className="w-5 h-5 text-white" />
@@ -398,16 +442,14 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
                   Cash Equipment
                 </h3>
                 
-                {/* Cash Equipment Character Layout */}
-                <div className="relative mx-auto overflow-visible" style={{ width: '350px', height: '400px', position: 'relative', zIndex: 1 }}>
+                <div className="relative mx-auto" style={{ width: '350px', height: '400px' }}>
                   {cashSlots.map(slot => (
                     <div
-                      key={slot.position}
-                      className="absolute overflow-visible"
+                      key={`cash-slot-${slot.position}`}
+                      className="absolute"
                       style={{
                         top: `${slot.row * 80}px`,
-                        left: `${slot.col * 70}px`,
-                        zIndex: 10
+                        left: `${slot.col * 70}px`
                       }}
                     >
                       {renderEquipmentSlot(slot.position, slot.name)}

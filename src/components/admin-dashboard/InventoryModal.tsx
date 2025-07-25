@@ -1,11 +1,12 @@
 // src/components/admin-dashboard/InventoryModal.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, Package, Search, Coins, Shield, Sparkles
 } from 'lucide-react';
 import { adminAPI } from '@/services/api';
+import { mapleStoryAPI } from '@/services/maplestory-api';
 import MapleStoryItem from './MapleStoryItem';
 
 interface EquipmentStats {
@@ -74,6 +75,9 @@ const InventoryModal: React.FC<InventoryModalProps> = ({
   const [selectedCharacter, setSelectedCharacter] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<number>(1);
+  const [isCharacterLoading, setIsCharacterLoading] = useState(false);
+  const [dataVersion, setDataVersion] = useState(0); // Force re-render on data change
+  const mountedRef = useRef(true);
 
   const inventoryTabs = [
     { id: 1, name: 'EQUIP', label: 'EQUIP' },
@@ -89,26 +93,56 @@ const InventoryModal: React.FC<InventoryModalProps> = ({
   const ROWS = 6;
 
   useEffect(() => {
-    if (isOpen) {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && mountedRef.current) {
       fetchInventory();
     }
   }, [isOpen, userId]);
 
   const fetchInventory = async () => {
+    if (!mountedRef.current) return;
+    
     setLoading(true);
     try {
       const response = await adminAPI.getUserInventory(userId);
-      if (response.ok) {
+      if (response.ok && mountedRef.current) {
         setCharacters(response.data.characters);
-        if (response.data.characters.length > 0) {
+        setDataVersion(prev => prev + 1); // Increment version to force re-render
+        if (response.data.characters.length > 0 && !selectedCharacter) {
           setSelectedCharacter(response.data.characters[0].id);
         }
       }
     } catch (error) {
       console.error('Failed to fetch inventory:', error);
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleCharacterChange = (newCharId: number) => {
+    setIsCharacterLoading(true);
+    setSelectedCharacter(newCharId);
+    
+    // Reset loading after animation
+    setTimeout(() => {
+      if (mountedRef.current) {
+        setIsCharacterLoading(false);
+      }
+    }, 300);
+  };
+
+  const handleTabChange = (tabId: number) => {
+    setSelectedTab(tabId);
+    // Force re-render on tab change
+    setDataVersion(prev => prev + 1);
   };
 
   const currentCharacter = characters.find(c => c.id === selectedCharacter);
@@ -123,9 +157,19 @@ const InventoryModal: React.FC<InventoryModalProps> = ({
     itemMap.set(item.position, item);
   });
 
+  // Prefetch item data for better performance
+  useEffect(() => {
+    if (currentCharacter && tabItems.length > 0 && !isCharacterLoading) {
+      const itemIds = tabItems.map(item => item.itemid);
+      // Prefetch in batches to avoid overwhelming the API
+      const uniqueIds = [...new Set(itemIds)];
+      if (uniqueIds.length > 0) {
+        mapleStoryAPI.prefetchItems(uniqueIds).catch(console.error);
+      }
+    }
+  }, [currentCharacter?.id, selectedTab, dataVersion]);
+
   if (!isOpen) return null;
-
-
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ zIndex: 100 }}>
@@ -162,7 +206,7 @@ const InventoryModal: React.FC<InventoryModalProps> = ({
               {inventoryTabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setSelectedTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                   className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${
                     selectedTab === tab.id
                       ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg transform scale-105'
@@ -183,8 +227,9 @@ const InventoryModal: React.FC<InventoryModalProps> = ({
                 {characters.length > 0 && (
                   <select
                     value={selectedCharacter || ''}
-                    onChange={(e) => setSelectedCharacter(Number(e.target.value))}
-                    className="bg-white text-gray-900 px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    onChange={(e) => handleCharacterChange(Number(e.target.value))}
+                    disabled={isCharacterLoading}
+                    className="bg-white text-gray-900 px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {characters.map((char) => (
                       <option key={char.id} value={char.id}>
@@ -204,34 +249,39 @@ const InventoryModal: React.FC<InventoryModalProps> = ({
 
             {/* Enhanced Inventory Grid */}
             <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm overflow-visible" style={{ position: 'relative', zIndex: 1 }}>
-              {loading ? (
+              {loading || isCharacterLoading ? (
                 <div className="flex items-center justify-center h-64">
                   <div className="text-center">
                     <div className="w-12 h-12 border-3 border-red-500/30 border-t-red-500 rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-gray-600">Loading inventory...</p>
+                    <p className="text-gray-600">{isCharacterLoading ? 'Switching character...' : 'Loading inventory...'}</p>
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-8 gap-1 overflow-visible">
+                <div 
+                  key={`inventory-${selectedCharacter}-${selectedTab}-${dataVersion}`} 
+                  className="grid grid-cols-8 gap-1 overflow-visible"
+                >
                   {Array.from({ length: SLOTS_PER_TAB }, (_, index) => {
                     const position = index + 1;
                     const item = itemMap.get(position);
                     
                     return (
                       <div
-                        key={position}
+                        key={`slot-${position}`}
                         className="w-14 h-14 bg-gray-50 border border-gray-200 rounded-lg hover:border-red-300 hover:bg-red-50 hover:scale-105 transition-all cursor-pointer relative overflow-visible"
-                        style={{ zIndex: 50 }}
+                        style={{ zIndex: item ? 10 : 1 }}
                       >
                         {item ? (
                           <div className="relative w-full h-full overflow-visible" style={{ zIndex: 100 }}>
                             <MapleStoryItem
+                              key={`item-${item.inventoryitemid}-${item.itemid}`}
                               itemId={item.itemid}
                               quantity={item.quantity}
                               giftFrom={item.giftFrom}
                               equipStats={item.equipStats}
                               slotPosition={item.position}
                               className="w-full h-full relative overflow-visible"
+                              showTooltip={true}
                             />
                           </div>
                         ) : (

@@ -1,7 +1,7 @@
 // src/components/user-dashboard/RankingsTab.tsx
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, startTransition } from 'react';
 import { 
   RankingFilters, 
   RankingsResponse, 
@@ -55,7 +55,7 @@ const SimpleCharacterDisplay: React.FC<{
   );
 };
 
-// MapleStory.io Character Renderer (same as CharactersTab)
+// MapleStory.io Character Renderer - FIXED VERSION
 const MapleStoryCharacterRenderer: React.FC<{
   character: any;
   className?: string;
@@ -64,6 +64,7 @@ const MapleStoryCharacterRenderer: React.FC<{
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [isImageReady, setIsImageReady] = useState(false);
 
   // Convert database skin color to API skin color
   const mapSkinColor = (dbSkinColor: number): number => {
@@ -81,6 +82,7 @@ const MapleStoryCharacterRenderer: React.FC<{
       try {
         setIsLoading(true);
         setError(false);
+        setIsImageReady(false);
 
         const { mapleStoryAPI } = await import('@/services/maplestory-api');
 
@@ -97,12 +99,25 @@ const MapleStoryCharacterRenderer: React.FC<{
         const testResult = await mapleStoryAPI.testCharacterEndpoint(characterOptions);
         
         if (testResult.success && testResult.url) {
-          setImageUrl(testResult.url);
+          const characterImageUrl = testResult.url; // Capture URL to fix TypeScript issue
+          
+          // Preload the image before setting URL
+          const img = new Image();
+          img.onload = () => {
+            setImageUrl(characterImageUrl);
+            setIsLoading(false);
+            // Small delay to ensure image is rendered before showing
+            setTimeout(() => setIsImageReady(true), 50);
+          };
+          img.onerror = () => {
+            setError(true);
+            setIsLoading(false);
+          };
+          img.src = characterImageUrl;
         } else {
           setError(true);
+          setIsLoading(false);
         }
-        
-        setIsLoading(false);
       } catch (err) {
         console.error('Error generating character image:', err);
         setError(true);
@@ -116,11 +131,12 @@ const MapleStoryCharacterRenderer: React.FC<{
   const handleImageError = () => {
     setError(true);
     setIsLoading(false);
+    setIsImageReady(false);
   };
 
   const handleImageLoad = () => {
-    setIsLoading(false);
-    setError(false);
+    // Image is already loaded in the effect, this is just a backup
+    setIsImageReady(true);
   };
 
   if (isLoading) {
@@ -163,11 +179,13 @@ const MapleStoryCharacterRenderer: React.FC<{
       <div
         className="absolute"
         style={{
-          bottom: '55px', // Same as your original positioning
+          bottom: '55px',
           left: '50%',
           transform: `translateX(-50%) scale(${scale})`,
           transformOrigin: 'bottom center',
-          transition: 'transform 0.3s ease'
+          // Only apply transition to opacity, not transform
+          transition: isImageReady ? 'opacity 0.3s ease' : 'none',
+          opacity: isImageReady ? 1 : 0
         }}
       >
         <img
@@ -176,7 +194,7 @@ const MapleStoryCharacterRenderer: React.FC<{
           className="block drop-shadow-lg"
           onLoad={handleImageLoad}
           onError={handleImageError}
-          loading="lazy"
+          loading="eager"
           style={{ 
             imageRendering: 'pixelated',
             maxHeight: 'none',
@@ -187,6 +205,36 @@ const MapleStoryCharacterRenderer: React.FC<{
     </div>
   );
 };
+
+// Skeleton loader component
+const RankingRowSkeleton: React.FC = () => (
+  <div className="grid grid-cols-12 gap-4 px-6 py-4 rounded-xl bg-gray-50 animate-pulse">
+    <div className="col-span-1 flex items-center justify-center">
+      <div className="w-12 h-8 bg-gray-200 rounded-full"></div>
+    </div>
+    <div className="col-span-1 flex items-center justify-center">
+      <div className="w-16 h-16 bg-gray-200 rounded-full"></div>
+    </div>
+    <div className="col-span-3 flex items-center">
+      <div className="w-32 h-8 bg-gray-200 rounded-full"></div>
+    </div>
+    <div className="col-span-1 flex items-center justify-center">
+      <div className="w-12 h-8 bg-gray-200 rounded-full"></div>
+    </div>
+    <div className="col-span-2 flex items-center justify-center">
+      <div className="w-24 h-8 bg-gray-200 rounded-full"></div>
+    </div>
+    <div className="col-span-2 flex items-center justify-center">
+      <div className="w-20 h-8 bg-gray-200 rounded-full"></div>
+    </div>
+    <div className="col-span-1 flex items-center justify-center">
+      <div className="w-16 h-8 bg-gray-200 rounded-full"></div>
+    </div>
+    <div className="col-span-1 flex items-center justify-center">
+      <div className="w-20 h-8 bg-gray-200 rounded-full"></div>
+    </div>
+  </div>
+);
 
 const RankingsTab: React.FC<RankingsTabProps> = ({
   rankings,
@@ -199,23 +247,50 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
   fetchRankings
 }) => {
   const [searchInput, setSearchInput] = useState('');
+  const [isFilterTransitioning, setIsFilterTransitioning] = useState(false);
 
   const handleJobFilter = (job: string) => {
-    updateRankingFilters({ job, page: 1 });
+    if (job === rankingFilters.job) return; // Don't update if same filter
+    
+    setIsFilterTransitioning(true);
+    startTransition(() => {
+      updateRankingFilters({ job, page: 1 });
+    });
+    
+    // Remove transition state after a short delay
+    setTimeout(() => setIsFilterTransitioning(false), 300);
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    updateRankingFilters({ search: searchInput.trim(), page: 1 });
+    const trimmedSearch = searchInput.trim();
+    
+    if (trimmedSearch === rankingFilters.search) return; // Don't update if same search
+    
+    setIsFilterTransitioning(true);
+    startTransition(() => {
+      updateRankingFilters({ search: trimmedSearch, page: 1 });
+    });
+    
+    setTimeout(() => setIsFilterTransitioning(false), 300);
   };
 
   const handleClearSearch = () => {
     setSearchInput('');
-    updateRankingFilters({ search: '', page: 1 });
+    setIsFilterTransitioning(true);
+    startTransition(() => {
+      updateRankingFilters({ search: '', page: 1 });
+    });
+    setTimeout(() => setIsFilterTransitioning(false), 300);
   };
 
   const handlePageChange = (page: number) => {
-    updateRankingFilters({ page });
+    setIsFilterTransitioning(true);
+    startTransition(() => {
+      updateRankingFilters({ page });
+    });
+    
+    setTimeout(() => setIsFilterTransitioning(false), 300);
   };
 
   const getJobIcon = (jobCategory: string) => {
@@ -227,10 +302,11 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
       'dawn-warrior': '🛡️',
       'magician': '🔮',
       'blaze-wizard': '🔮',
-      'thief': '🗡️',
-      'night-walker': '🗡️',
+      'archer': '🏹',
       'bowman': '🏹',
       'wind-archer': '🏹',
+      'thief': '🗡️',
+      'night-walker': '🗡️',
       'pirate': '⚓',
       'thunder-breaker': '⚓',
       'aran': '❄️'
@@ -246,9 +322,38 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
           50% { opacity: 0.6; transform: scale(1.1); }
         }
         
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
         .ranking-row {
           transition: all 0.3s ease;
+          animation: fadeIn 0.3s ease-out;
+          animation-fill-mode: both;
         }
+        
+        .ranking-row:nth-child(1) { animation-delay: 0ms; }
+        .ranking-row:nth-child(2) { animation-delay: 50ms; }
+        .ranking-row:nth-child(3) { animation-delay: 100ms; }
+        .ranking-row:nth-child(4) { animation-delay: 150ms; }
+        .ranking-row:nth-child(5) { animation-delay: 200ms; }
+        .ranking-row:nth-child(6) { animation-delay: 250ms; }
+        .ranking-row:nth-child(7) { animation-delay: 300ms; }
+        .ranking-row:nth-child(8) { animation-delay: 350ms; }
+        .ranking-row:nth-child(9) { animation-delay: 400ms; }
+        .ranking-row:nth-child(10) { animation-delay: 450ms; }
+        .ranking-row:nth-child(11) { animation-delay: 500ms; }
+        .ranking-row:nth-child(12) { animation-delay: 550ms; }
+        .ranking-row:nth-child(13) { animation-delay: 600ms; }
+        .ranking-row:nth-child(14) { animation-delay: 650ms; }
+        .ranking-row:nth-child(15) { animation-delay: 700ms; }
         
         .ranking-row .bg-gif {
           opacity: 0.3;
@@ -285,7 +390,7 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
       `}</style>
       
       {/* Enhanced Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className={`grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 transition-all duration-300 ${isFilterTransitioning ? 'opacity-70' : 'opacity-100'}`}>
         <div className="group relative bg-gradient-to-br from-orange-50 via-orange-50 to-orange-100 rounded-3xl p-6 border border-orange-200/50 hover:shadow-2xl hover:scale-105 transition-all duration-500 overflow-hidden">
           <div className="absolute -top-4 -right-4 w-24 h-24 bg-orange-400/20 rounded-full blur-xl" />
           <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-orange-300/30 rounded-full blur-lg" />
@@ -432,7 +537,9 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
               <Trophy className="w-6 h-6 text-orange-500" />
               <div>
                 <h2 className="text-xl font-bold text-gray-900">
-                  {rankingFilters.job !== 'all' ? `${rankingFilters.job.charAt(0).toUpperCase() + rankingFilters.job.slice(1)} Rankings` : 'Top Players'}
+                  {rankingFilters.job !== 'all' ? 
+                    `${rankingFilters.job === 'archer' ? 'Bowman' : rankingFilters.job.charAt(0).toUpperCase() + rankingFilters.job.slice(1)} Rankings` : 
+                    'Top Players'}
                 </h2>
                 <p className="text-sm text-gray-600">Search players and filter by job class</p>
               </div>
@@ -489,10 +596,10 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
                 { value: 'dawn-warrior', label: 'Dawn Warrior' },
                 { value: 'magician', label: 'Magician' },
                 { value: 'blaze-wizard', label: 'Blaze Wizard' },
+                { value: 'archer', label: 'Bowman' },  // Display as Bowman but value is archer
+                { value: 'wind-archer', label: 'Wind Archer' },
                 { value: 'thief', label: 'Thief' },
                 { value: 'night-walker', label: 'Night Walker' },
-                { value: 'bowman', label: 'Bowman' },
-                { value: 'wind-archer', label: 'Wind Archer' },
                 { value: 'pirate', label: 'Pirate' },
                 { value: 'thunder-breaker', label: 'Thunder Breaker' },
                 { value: 'aran', label: 'Aran' }
@@ -504,19 +611,22 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
                     'beginner': 'beginner',
                     'noblesse': 'noblesse',
                     'warrior': 'warrior',
-                    'dawn-warrior': 'dawn_warrior', // Note: using underscore as in your file
+                    'dawn-warrior': 'dawn_warrior',
                     'magician': 'magician',
-                    'blaze-wizard': 'blaze_wizard', // Note: using underscore as in your file
+                    'blaze-wizard': 'blaze_wizard',
                     'thief': 'thief',
-                    'night-walker': 'night_walker', // Note: using underscore as in your file
-                    'bowman': 'bowman',
-                    'wind-archer': 'wind_archer', // Note: using underscore as in your file
+                    'night-walker': 'night_walker',
+                    'archer': 'bowman',  // Map archer value to bowman icon
+                    'wind-archer': 'wind_archer',
                     'pirate': 'pirate',
-                    'thunder-breaker': 'thunder_breaker', // Note: using underscore as in your file
+                    'thunder-breaker': 'thunder_breaker',
                     'aran': 'aran'
                   };
                   return iconMap[jobValue] || 'all';
                 };
+
+                // Override label for archer
+                const displayLabel = job.value === 'archer' ? 'Bowman' : job.label;
 
                 return (
                   <button
@@ -532,7 +642,7 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
                     <span className="w-4 h-4 flex items-center justify-center">
                       <img 
                         src={`/assets/job-icons/${getIconFileName(job.value)}.png`} 
-                        alt={job.label}
+                        alt={displayLabel}
                         className="w-4 h-4"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
@@ -543,7 +653,7 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
                         }}
                       />
                     </span>
-                    {job.label}
+                    {displayLabel}
                   </button>
                 );
               })}
@@ -552,10 +662,53 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
         </div>
 
         {/* Custom Table */}
-        {isLoadingRankings ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="w-8 h-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin"></div>
-            <span className="ml-3 text-gray-600">Loading rankings...</span>
+        {isLoadingRankings || isFilterTransitioning ? (
+          <div className="relative min-h-[600px]">
+            {/* Keep previous content visible but faded during transitions */}
+            {rankings.length > 0 && isFilterTransitioning && !isLoadingRankings && (
+              <div className="opacity-30 transition-opacity duration-300">
+                <div className="p-6 space-y-4">
+                  {/* Header Row */}
+                  <div className="grid grid-cols-12 gap-4 px-6 py-3 text-xs font-bold text-gray-600 uppercase tracking-wider border-b border-gray-200">
+                    <div className="col-span-1 text-center">Rank</div>
+                    <div className="col-span-1 text-center">Avatar</div>
+                    <div className="col-span-3">Player</div>
+                    <div className="col-span-1 text-center">Level</div>
+                    <div className="col-span-2 text-center">Job</div>
+                    <div className="col-span-2 text-center">Guild</div>
+                    <div className="col-span-1 text-center">Fame</div>
+                    <div className="col-span-1 text-center">EXP</div>
+                  </div>
+                  
+                  {/* Show existing data */}
+                  {rankings.slice(0, 10).map(player => (
+                    <div key={player.id} className="grid grid-cols-12 gap-4 px-6 py-4">
+                      <div className="col-span-1 text-center">#{player.rank}</div>
+                      <div className="col-span-1"></div>
+                      <div className="col-span-3">{player.name}</div>
+                      <div className="col-span-1 text-center">{player.level}</div>
+                      <div className="col-span-2 text-center">{player.job}</div>
+                      <div className="col-span-2 text-center">{player.guild || '-'}</div>
+                      <div className="col-span-1 text-center">{player.fame}</div>
+                      <div className="col-span-1 text-center">{player.exp}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Loading overlay */}
+            <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative">
+                  <div className="w-12 h-12 border-3 border-orange-500/30 border-t-orange-500 rounded-full animate-spin"></div>
+                  <Sparkles className="w-6 h-6 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-orange-400 animate-pulse" />
+                </div>
+                <span className="text-sm text-gray-600 font-medium">
+                  {isFilterTransitioning ? 'Updating...' : 'Loading rankings...'}
+                </span>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="p-6 space-y-4">
@@ -569,7 +722,7 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
                       {rankingFilters.search 
                         ? `No players found matching "${rankingFilters.search}"`
                         : rankingFilters.job !== 'all'
-                        ? `No ${rankingFilters.job} players found`
+                        ? `No ${rankingFilters.job === 'archer' ? 'Bowman' : rankingFilters.job} players found`
                         : 'Rankings will appear here once characters are created'
                       }
                     </p>

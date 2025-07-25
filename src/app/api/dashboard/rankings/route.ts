@@ -47,12 +47,9 @@ export async function GET(request: NextRequest) {
 
     // Get total count for pagination - Simple query
     const totalCountQuery = `SELECT COUNT(*) as total FROM characters c ${whereClause}`;
-    console.log('Total count query:', totalCountQuery);
-    console.log('Total count params:', queryParams);
     
     const totalResult = await query<any>(totalCountQuery, queryParams);
     const total = totalResult[0]?.total || 0;
-    console.log('Total count result:', total);
 
     // Get rankings - Simple query without ROW_NUMBER()
     const rankingsQuery = `
@@ -81,12 +78,8 @@ export async function GET(request: NextRequest) {
       ORDER BY c.level DESC, c.exp DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
-
-    console.log('Rankings query:', rankingsQuery);
-    console.log('Rankings params:', queryParams);
     
     const rankings = await query<any>(rankingsQuery, queryParams);
-    console.log('Rankings result count:', rankings.length);
 
     // Get equipment for all characters at once
     const characterIds = rankings.map((char: any) => char.id);
@@ -247,18 +240,20 @@ export async function GET(request: NextRequest) {
 function getJobFilterCondition(jobFilter: string): string | null {
   const jobFilters: { [key: string]: string } = {
     'beginner': 'c.job = 0',
-    'noblesse': 'c.job = 1000', // Cygnus beginner
+    'noblesse': 'c.job = 1000',
     'warrior': 'c.job BETWEEN 100 AND 132',
-    'dawn-warrior': 'c.job BETWEEN 1100 AND 1112', // Cygnus warrior
+    'dawn-warrior': 'c.job BETWEEN 1100 AND 1112',
     'magician': 'c.job BETWEEN 200 AND 232',
-    'blaze-wizard': 'c.job BETWEEN 1200 AND 1212', // Cygnus magician
-    'thief': 'c.job BETWEEN 400 AND 434',
-    'night-walker': 'c.job BETWEEN 1400 AND 1412', // Cygnus thief
-    'bowman': 'c.job BETWEEN 300 AND 322',
-    'wind-archer': 'c.job BETWEEN 1300 AND 1312', // Cygnus archer
-    'pirate': 'c.job BETWEEN 500 AND 532',
-    'thunder-breaker': 'c.job BETWEEN 1500 AND 1512', // Cygnus pirate
-    'aran': 'c.job BETWEEN 2000 AND 2112',
+    'blaze-wizard': 'c.job BETWEEN 1200 AND 1212',
+    'archer': 'c.job BETWEEN 300 AND 322',
+    'wind-archer': 'c.job BETWEEN 1300 AND 1312',
+    'thief': 'c.job BETWEEN 400 AND 434', // Updated to include Dual Blade
+    'night-walker': 'c.job BETWEEN 1400 AND 1412',
+    'pirate': 'c.job BETWEEN 500 AND 532', // Updated to include all pirate jobs
+    'thunder-breaker': 'c.job BETWEEN 1500 AND 1512',
+    'legend-beginner': 'c.job IN (2000, 2001)', // Aran and Evan beginners
+    'aran': 'c.job BETWEEN 2000 AND 2112', // Includes Aran beginner
+    'evan': 'c.job BETWEEN 2001 AND 2218', // Includes Evan beginner
     'gm': 'c.job BETWEEN 800 AND 910'
   };
 
@@ -273,13 +268,15 @@ function getJobCategory(jobId: number): string {
   if (jobId >= 1100 && jobId <= 1112) return 'dawn-warrior';
   if (jobId >= 200 && jobId <= 232) return 'magician';
   if (jobId >= 1200 && jobId <= 1212) return 'blaze-wizard';
+  if (jobId >= 300 && jobId <= 322) return 'archer';
+  if (jobId >= 1300 && jobId <= 1312) return 'wind-archer';
   if (jobId >= 400 && jobId <= 434) return 'thief';
   if (jobId >= 1400 && jobId <= 1412) return 'night-walker';
-  if (jobId >= 300 && jobId <= 322) return 'bowman';
-  if (jobId >= 1300 && jobId <= 1312) return 'wind-archer';
   if (jobId >= 500 && jobId <= 532) return 'pirate';
   if (jobId >= 1500 && jobId <= 1512) return 'thunder-breaker';
-  if (jobId >= 2000 && jobId <= 2112) return 'aran';
+  if (jobId >= 2000 && jobId <= 2001) return 'legend-beginner';
+  if (jobId >= 2100 && jobId <= 2112) return 'aran';
+  if (jobId >= 2200 && jobId <= 2218) return 'evan';
   if (jobId >= 800 && jobId <= 910) return 'gm';
   return 'unknown';
 }
@@ -294,13 +291,14 @@ function getAvailableJobCategories() {
     { value: 'dawn-warrior', label: 'Dawn Warrior', icon: 'warrior' },
     { value: 'magician', label: 'Magician', icon: 'magician' },
     { value: 'blaze-wizard', label: 'Blaze Wizard', icon: 'magician' },
+    { value: 'archer', label: 'Archer', icon: 'archer' },
+    { value: 'wind-archer', label: 'Wind Archer', icon: 'archer' },
     { value: 'thief', label: 'Thief', icon: 'thief' },
     { value: 'night-walker', label: 'Night Walker', icon: 'thief' },
-    { value: 'bowman', label: 'Bowman', icon: 'bowman' },
-    { value: 'wind-archer', label: 'Wind Archer', icon: 'bowman' },
     { value: 'pirate', label: 'Pirate', icon: 'pirate' },
     { value: 'thunder-breaker', label: 'Thunder Breaker', icon: 'pirate' },
-    { value: 'aran', label: 'Aran', icon: 'aran' }
+    { value: 'aran', label: 'Aran', icon: 'aran' },
+    { value: 'evan', label: 'Evan', icon: 'evan' }
   ];
 }
 
@@ -334,8 +332,8 @@ function getJobName(jobId: number): string {
     231: 'Priest',
     232: 'Bishop',
     
-    // Bowmen
-    300: 'Bowman',
+    // Archers
+    300: 'Archer',
     310: 'Hunter',
     311: 'Ranger',
     312: 'Bowmaster',
@@ -344,7 +342,7 @@ function getJobName(jobId: number): string {
     322: 'Marksman',
     
     // Thieves
-    400: 'Thief',
+    400: 'Rogue',
     410: 'Assassin',
     411: 'Hermit',
     412: 'Night Lord',
@@ -355,11 +353,11 @@ function getJobName(jobId: number): string {
     431: 'Blade Acolyte',
     432: 'Blade Specialist',
     433: 'Blade Lord',
-    434: 'Blade Master',
+    434: 'Dual Blade',
     
     // Pirates
     500: 'Pirate',
-    501: 'Pirate',
+    501: 'Cannon Shooter',
     510: 'Brawler',
     511: 'Marauder',
     512: 'Buccaneer',
@@ -399,8 +397,8 @@ function getJobName(jobId: number): string {
     1512: 'Thunder Breaker 4th',
     
     // Legends
-    2000: 'Legend',
-    2001: 'Evan',
+    2000: 'Aran Beginner',
+    2001: 'Evan Beginner',
     2100: 'Aran',
     2110: 'Aran 2nd',
     2111: 'Aran 3rd',

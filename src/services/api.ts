@@ -84,6 +84,31 @@ export const adminAPI = {
       method: 'DELETE',
     });
   },
+
+  toggleBan: async (userId: number, banStatus: number) => {
+    return apiCall('/api/admin/users/toggle-ban', {
+      method: 'POST',
+      body: JSON.stringify({ userId, banStatus })
+    });
+  },
+
+  updateNXCredits: async (userId: number, amount: number) => {
+    return apiCall('/api/admin/users/update-nx', {
+      method: 'POST',
+      body: JSON.stringify({ userId, amount })
+    });
+  },
+
+  updateMeso: async (characterId: number, amount: number) => {
+    return apiCall('/api/admin/characters/update-meso', {
+      method: 'POST',
+      body: JSON.stringify({ characterId, amount })
+    });
+  },
+
+  getUserInventory: async (userId: number) => {
+    return apiCall(`/api/admin/users/${userId}/inventory`);
+  }
 };
 
 // ==========================================
@@ -98,8 +123,24 @@ export const dashboardAPI = {
     return apiCall('/api/dashboard/characters');
   },
 
-  getRankings: async () => {
-    return apiCall('/api/dashboard/rankings');
+  // Updated rankings API with proper parameters
+  getRankings: async (params?: {
+    page?: number;
+    limit?: number;
+    job?: string;
+    search?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page) searchParams.append('page', params.page.toString());
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.job) searchParams.append('job', params.job);
+    if (params?.search) searchParams.append('search', params.search);
+    
+    const queryString = searchParams.toString();
+    const url = queryString ? `/api/dashboard/rankings?${queryString}` : '/api/dashboard/rankings';
+    
+    return apiCall(url);
   },
 };
 

@@ -115,30 +115,46 @@ const UserDashboard = () => {
     }
   };
 
+  // Replace the fetchRankings function in UserDashboard.tsx with this debug version
+
   const fetchRankings = async () => {
     try {
       setIsLoadingRankings(true);
       
-      const params = new URLSearchParams({
+      console.log('Fetching rankings with filters:', rankingFilters);
+      
+      // Use the API service instead of direct fetch
+      const response = await dashboardAPI.getRankings({
+        page: rankingFilters.page,
+        limit: rankingFilters.limit,
         job: rankingFilters.job,
-        search: rankingFilters.search,
-        page: rankingFilters.page.toString(),
-        limit: rankingFilters.limit.toString()
+        search: rankingFilters.search
       });
 
-      const response = await fetch(`/api/dashboard/rankings?${params}`);
-      const data: RankingsResponse = await response.json();
+      console.log('Rankings API response:', response);
 
-      if (response.ok) {
-        setRankings(data.rankings);
-        setUserRanking(data.userRanking || null);
-        setRankingPagination(data.pagination);
-        setAvailableJobs(data.filters.availableJobs);
+      if (response.ok && response.data) {
+        console.log('Rankings data:', response.data);
+        setRankings(response.data.rankings || []);
+        setUserRanking(response.data.userRanking || null);
+        setRankingPagination(response.data.pagination || null);
+        setAvailableJobs(response.data.availableJobs || []);
       } else {
-        console.error('Failed to fetch rankings:', data);
+        console.error('Failed to fetch rankings:', response.data);
+        console.error('Response status:', response.status);
+        // Set empty states on error
+        setRankings([]);
+        setUserRanking(null);
+        setRankingPagination(null);
+        setAvailableJobs([{ value: 'all', label: 'All Jobs', icon: 'all' }]);
       }
     } catch (error) {
-      console.error('Failed to fetch rankings:', error);
+      console.error('Failed to fetch rankings - Exception:', error);
+      // Set empty states on error
+      setRankings([]);
+      setUserRanking(null);
+      setRankingPagination(null);
+      setAvailableJobs([{ value: 'all', label: 'All Jobs', icon: 'all' }]);
     } finally {
       setIsLoadingRankings(false);
     }

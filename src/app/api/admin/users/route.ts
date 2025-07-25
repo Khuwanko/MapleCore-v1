@@ -23,6 +23,47 @@ export const GET = requireAdmin(async (req: AuthenticatedRequest) => {
       LIMIT 200`
     );
 
+    // Get characters for all users in one query
+    if (users.length > 0) {
+      const userIds = users.map((u: any) => u.id);
+      const placeholders = userIds.map(() => '?').join(',');
+      
+      const characters = await query<any>(
+        `SELECT 
+          id,
+          accountid,
+          name,
+          level,
+          meso,
+          job,
+          exp,
+          str,
+          dex,
+          \`int\`,
+          luk,
+          maxhp,
+          maxmp
+        FROM characters 
+        WHERE accountid IN (${placeholders})
+        ORDER BY level DESC`,
+        userIds
+      );
+
+      // Create a map of characters by account ID
+      const charactersByAccount: { [key: number]: any[] } = {};
+      characters.forEach((char: any) => {
+        if (!charactersByAccount[char.accountid]) {
+          charactersByAccount[char.accountid] = [];
+        }
+        charactersByAccount[char.accountid].push(char);
+      });
+
+      // Add characters to each user
+      users.forEach((user: any) => {
+        user.characters = charactersByAccount[user.id] || [];
+      });
+    }
+
     return NextResponse.json({ 
       users,
       total: users.length

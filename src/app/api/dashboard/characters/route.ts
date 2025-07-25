@@ -3,6 +3,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, AuthenticatedRequest } from '@/lib/middleware/auth';
 import { secureQueries } from '@/lib/db';
 
+// Helper function to convert database skin color to MapleStory.io API skin color
+function mapSkinColor(dbSkinColor: number): number {
+  // Convert database skin color to MapleStory.io API skin color
+  const skinMap: { [key: number]: number } = {
+    0: 2000, // Light skin
+    1: 2001, // Tanned skin  
+    2: 2002, // Dark skin
+    3: 2003  // Pale skin
+  };
+  return skinMap[dbSkinColor] ?? 2000; // Default to light skin if unknown value
+}
+
 export const GET = requireAuth(async (req: AuthenticatedRequest) => {
   try {
     const userId = req.user!.userId;
@@ -38,8 +50,8 @@ export const GET = requireAuth(async (req: AuthenticatedRequest) => {
         jobId: char.job,
         exp: Math.max(0, Math.min(100, expProgress)),
         meso: char.meso || 0,
-        // Add appearance data
-        skincolor: char.skincolor || 0,
+        // Add appearance data with FIXED skin color conversion
+        skincolor: mapSkinColor(char.skincolor || 0), // <-- CHANGED: Now converts DB skin to API skin
         gender: char.gender || 0,
         hair: char.hair || 30000,
         face: char.face || 20000,
@@ -78,7 +90,7 @@ function getExpForLevel(level: number): number {
   return Math.floor(level * level * level * 1.5);
 }
 
-// Helper function to convert job ID to job name - UPDATED with your server's jobs
+// Helper function to convert job ID to job name
 function getJobName(jobId: number): string {
   const jobMap: { [key: number]: string } = {
     // Beginner
@@ -108,8 +120,8 @@ function getJobName(jobId: number): string {
     231: 'Priest',
     232: 'Bishop',
     
-    // Bowmen
-    300: 'Bowman',
+    // Archers
+    300: 'Archer',
     310: 'Hunter',
     311: 'Ranger',
     312: 'Bowmaster',
@@ -118,22 +130,31 @@ function getJobName(jobId: number): string {
     322: 'Marksman',
     
     // Thieves
-    400: 'Thief',
+    400: 'Rogue',
     410: 'Assassin',
     411: 'Hermit',
     412: 'Night Lord',
     420: 'Bandit',
     421: 'Chief Bandit',
     422: 'Shadower',
+    430: 'Blade Recruit',
+    431: 'Blade Acolyte',
+    432: 'Blade Specialist',
+    433: 'Blade Lord',
+    434: 'Dual Blade',
     
     // Pirates
     500: 'Pirate',
+    501: 'Cannon Shooter',
     510: 'Brawler',
     511: 'Marauder',
     512: 'Buccaneer',
     520: 'Gunslinger',
     521: 'Outlaw',
     522: 'Corsair',
+    530: 'Cannoneer',
+    531: 'Cannon Trooper',
+    532: 'Cannon Master',
     
     // Special Jobs
     800: 'Maple Leaf Brigadier',
@@ -164,8 +185,8 @@ function getJobName(jobId: number): string {
     1512: 'Thunder Breaker 4th',
     
     // Legends
-    2000: 'Legend',
-    2001: 'Evan',
+    2000: 'Aran Beginner',
+    2001: 'Evan Beginner',
     2100: 'Aran',
     2110: 'Aran 2nd',
     2111: 'Aran 3rd',

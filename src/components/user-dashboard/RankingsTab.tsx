@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import CharacterRenderer from '@/components/Character-render/CharacterRenderer';
 import { 
   RankingFilters, 
   RankingsResponse, 
@@ -10,7 +9,7 @@ import {
   JobCategory 
 } from '@/types/api';
 import { 
-  Trophy, Crown, Users, Star, TrendingUp, Heart, User,
+  Trophy, Crown, Users, Star, TrendingUp, Heart, User, Loader2, Sparkles,
   Search, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
@@ -24,6 +23,170 @@ interface RankingsTabProps {
   updateRankingFilters: (filters: Partial<RankingFilters>) => void;
   fetchRankings: () => void;
 }
+
+// Simple Character Display (fallback)
+const SimpleCharacterDisplay: React.FC<{
+  character: any;
+  className?: string;
+  scale?: number;
+}> = ({ character, className = "", scale = 1 }) => {
+  const size = scale * 64; // Base size 64px
+  
+  return (
+    <div className={`flex items-center justify-center ${className}`}>
+      <div className="flex flex-col items-center gap-1">
+        <div className="relative">
+          <div 
+            className="bg-gradient-to-br from-orange-200 via-orange-300 to-red-300 rounded-full flex items-center justify-center shadow-lg border-2 border-white"
+            style={{ width: `${size}px`, height: `${size}px` }}
+          >
+            <User className="text-orange-700" style={{ width: `${size * 0.5}px`, height: `${size * 0.5}px` }} />
+          </div>
+          
+          <div 
+            className="absolute -top-1 -right-1 bg-gradient-to-br from-orange-500 to-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg"
+            style={{ width: `${size * 0.25}px`, height: `${size * 0.25}px`, fontSize: `${Math.max(10, size * 0.15)}px` }}
+          >
+            {character.level}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// MapleStory.io Character Renderer (same as CharactersTab)
+const MapleStoryCharacterRenderer: React.FC<{
+  character: any;
+  className?: string;
+  scale?: number;
+}> = ({ character, className = "", scale = 1 }) => {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  // Convert database skin color to API skin color
+  const mapSkinColor = (dbSkinColor: number): number => {
+    const skinMap: { [key: number]: number } = {
+      0: 2000, // Light skin
+      1: 2001, // Tanned skin  
+      2: 2002, // Dark skin
+      3: 2003  // Pale skin
+    };
+    return skinMap[dbSkinColor] ?? 2000;
+  };
+
+  useEffect(() => {
+    const generateCharacterImage = async () => {
+      try {
+        setIsLoading(true);
+        setError(false);
+
+        const { mapleStoryAPI } = await import('@/services/maplestory-api');
+
+        const characterOptions = {
+          hair: character.hair,
+          face: character.face,
+          skin: mapSkinColor(character.skincolor),
+          equipment: character.equipment || {},
+          resize: scale,
+          renderMode: 'default',
+          flipX: false
+        };
+
+        const testResult = await mapleStoryAPI.testCharacterEndpoint(characterOptions);
+        
+        if (testResult.success && testResult.url) {
+          setImageUrl(testResult.url);
+        } else {
+          setError(true);
+        }
+        
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Error generating character image:', err);
+        setError(true);
+        setIsLoading(false);
+      }
+    };
+
+    generateCharacterImage();
+  }, [character, scale]);
+
+  const handleImageError = () => {
+    setError(true);
+    setIsLoading(false);
+  };
+
+  const handleImageLoad = () => {
+    setIsLoading(false);
+    setError(false);
+  };
+
+  if (isLoading) {
+    const iconSize = scale * 32;
+    const sparkleSize = scale * 16;
+
+    return (
+      <div className={`flex items-center justify-center ${className}`}>
+        <div className="flex flex-col items-center gap-2">
+          <div className="relative">
+            <Loader2 className="animate-spin text-orange-500" style={{ width: `${iconSize}px`, height: `${iconSize}px` }} />
+            <Sparkles 
+              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-orange-300 animate-pulse" 
+              style={{ width: `${sparkleSize}px`, height: `${sparkleSize}px` }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !imageUrl) {
+    return (
+      <SimpleCharacterDisplay 
+        character={character}
+        className={className}
+        scale={scale}
+      />
+    );
+  }
+
+  return (
+    <div 
+      className={`relative ${className}`}
+      style={{
+        width: '100%',
+        height: '100%'
+      }}
+    >
+      <div
+        className="absolute"
+        style={{
+          bottom: '55px', // Same as your original positioning
+          left: '50%',
+          transform: `translateX(-50%) scale(${scale})`,
+          transformOrigin: 'bottom center',
+          transition: 'transform 0.3s ease'
+        }}
+      >
+        <img
+          src={imageUrl}
+          alt={`${character.name} character`}
+          className="block drop-shadow-lg"
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+          loading="lazy"
+          style={{ 
+            imageRendering: 'pixelated',
+            maxHeight: 'none',
+            maxWidth: 'none'
+          }}
+        />
+      </div>
+    </div>
+  );
+};
 
 const RankingsTab: React.FC<RankingsTabProps> = ({
   rankings,
@@ -230,7 +393,7 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
           </h3>
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 bg-white/20 rounded-lg flex items-center justify-center">
-              <CharacterRenderer 
+              <MapleStoryCharacterRenderer 
                 character={{
                   id: userRanking.id,
                   name: userRanking.name,
@@ -313,29 +476,46 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
             </form>
           </div>
 
-          {/* Job Filter Buttons */}
+          {/* Job Filter Buttons - Using actual PNG icons */}
           <div>
             <h3 className="text-sm font-semibold mb-3 text-gray-700">Filter by Job Class</h3>
             <div className="flex flex-wrap gap-2">
-              {availableJobs.map(job => {
-                const getIconName = (jobValue: string) => {
-                  switch(jobValue) {
-                    case 'all': return 'all';
-                    case 'beginner': 
-                    case 'noblesse': return 'beginner';
-                    case 'warrior': 
-                    case 'dawn-warrior': return 'warrior';
-                    case 'magician': 
-                    case 'blaze-wizard': return 'magician';
-                    case 'thief': 
-                    case 'night-walker': return 'thief';
-                    case 'bowman': 
-                    case 'wind-archer': return 'bowman';
-                    case 'pirate': 
-                    case 'thunder-breaker': return 'pirate';
-                    case 'aran': return 'aran';
-                    default: return 'all';
-                  }
+              {/* Use availableJobs from props, but ensure we have all jobs */}
+              {(availableJobs && availableJobs.length > 0 ? availableJobs : [
+                { value: 'all', label: 'All Jobs' },
+                { value: 'beginner', label: 'Beginner' },
+                { value: 'noblesse', label: 'Noblesse' },
+                { value: 'warrior', label: 'Warrior' },
+                { value: 'dawn-warrior', label: 'Dawn Warrior' },
+                { value: 'magician', label: 'Magician' },
+                { value: 'blaze-wizard', label: 'Blaze Wizard' },
+                { value: 'thief', label: 'Thief' },
+                { value: 'night-walker', label: 'Night Walker' },
+                { value: 'bowman', label: 'Bowman' },
+                { value: 'wind-archer', label: 'Wind Archer' },
+                { value: 'pirate', label: 'Pirate' },
+                { value: 'thunder-breaker', label: 'Thunder Breaker' },
+                { value: 'aran', label: 'Aran' }
+              ]).map(job => {
+                const getIconFileName = (jobValue: string) => {
+                  // Map job values to your actual PNG file names
+                  const iconMap: { [key: string]: string } = {
+                    'all': 'all',
+                    'beginner': 'beginner',
+                    'noblesse': 'noblesse',
+                    'warrior': 'warrior',
+                    'dawn-warrior': 'dawn_warrior', // Note: using underscore as in your file
+                    'magician': 'magician',
+                    'blaze-wizard': 'blaze_wizard', // Note: using underscore as in your file
+                    'thief': 'thief',
+                    'night-walker': 'night_walker', // Note: using underscore as in your file
+                    'bowman': 'bowman',
+                    'wind-archer': 'wind_archer', // Note: using underscore as in your file
+                    'pirate': 'pirate',
+                    'thunder-breaker': 'thunder_breaker', // Note: using underscore as in your file
+                    'aran': 'aran'
+                  };
+                  return iconMap[jobValue] || 'all';
                 };
 
                 return (
@@ -348,18 +528,21 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
                         : 'bg-white text-gray-700 hover:bg-orange-50 hover:text-orange-600 border border-gray-200 hover:border-orange-300'
                     }`}
                   >
-                    <img 
-                      src={`/assets/job-icons/${getIconName(job.value)}.png`} 
-                      alt={job.label}
-                      className="w-4 h-4"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                        const fallback = target.nextElementSibling as HTMLElement;
-                        if (fallback) fallback.style.display = 'inline';
-                      }}
-                    />
-                    <span className="hidden">{getJobIcon(job.value)}</span>
+                    {/* Use actual PNG icons with emoji fallback */}
+                    <span className="w-4 h-4 flex items-center justify-center">
+                      <img 
+                        src={`/assets/job-icons/${getIconFileName(job.value)}.png`} 
+                        alt={job.label}
+                        className="w-4 h-4"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          const parent = target.parentElement;
+                          if (parent) {
+                            parent.innerHTML = getJobIcon(job.value);
+                          }
+                        }}
+                      />
+                    </span>
                     {job.label}
                   </button>
                 );
@@ -456,11 +639,11 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
                       </span>
                     </div>
 
-                    {/* Character Avatar */}
+                    {/* Character Avatar - UPDATED TO USE MapleStoryCharacterRenderer */}
                     <div className="col-span-1 flex items-center justify-center relative z-10">
                       <div className="character-avatar relative" style={{ width: '100px', height: '100px' }}>
                         <div className="absolute inset-0 flex items-end justify-center" style={{ bottom: '-55px' }}>
-                          <CharacterRenderer 
+                          <MapleStoryCharacterRenderer 
                             character={{
                               id: player.id,
                               name: player.name,
@@ -475,7 +658,7 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
                               exp: player.exp || 0,
                               meso: player.meso || 0
                             }}
-                            scale={1.2}
+                            scale={1.0}
                           />
                         </div>
                       </div>

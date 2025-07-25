@@ -15,7 +15,9 @@ import {
   UsersTab, 
   HeroSections, 
   CreateAnnouncementModal,
-  PasswordUpdateModal
+  PasswordUpdateModal,
+  InventoryModal,
+  EquipmentModal
 } from '@/components/admin-dashboard';
 
 interface Announcement {
@@ -36,6 +38,10 @@ const AdminPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [selectedInventoryUser, setSelectedInventoryUser] = useState<{ userId: number; username: string } | null>(null);
+  const [showEquipmentModal, setShowEquipmentModal] = useState(false);
+  const [selectedEquipmentUser, setSelectedEquipmentUser] = useState<{ userId: number; username: string } | null>(null);
   
   // User management states
   const [users, setUsers] = useState<any[]>([]);
@@ -68,6 +74,75 @@ const AdminPage = () => {
     { id: 'announcements', label: 'Announcements', icon: Bell },
     { id: 'users', label: 'User Management', icon: Users },
   ];
+
+  const viewUserEquipment = (userId: number, username: string) => {
+    setSelectedEquipmentUser({ userId, username });
+    setShowEquipmentModal(true);
+  };
+
+  // Toggle ban status
+  const toggleUserBan = async (userId: number, currentBanStatus: number) => {
+    const newBanStatus = currentBanStatus === 0 ? 1 : 0;
+    const action = newBanStatus === 1 ? 'ban' : 'unban';
+    
+    if (!confirm(`Are you sure you want to ${action} this user?`)) {
+      return;
+    }
+
+    try {
+      const response = await adminAPI.toggleBan(userId, newBanStatus);
+
+      if (response.ok) {
+        alert(`User ${action}ned successfully!`);
+        fetchUsers(); // Refresh the list
+      } else {
+        alert(`Error: ${response.data.error}`);
+      }
+    } catch (error) {
+      console.error('Toggle ban error:', error);
+      alert(`Failed to ${action} user`);
+    }
+  };
+
+  // Update NX Credits
+  const updateNXCredits = async (userId: number, amount: number) => {
+    try {
+      const response = await adminAPI.updateNXCredits(userId, amount);
+
+      if (response.ok) {
+        fetchUsers(); // Refresh the list
+        // Optional: Show success toast instead of alert
+      } else {
+        alert(`Error: ${response.data.error}`);
+      }
+    } catch (error) {
+      console.error('Update NX error:', error);
+      alert('Failed to update NX Credits');
+    }
+  };
+
+  // Update Character Meso
+  const updateCharacterMeso = async (characterId: number, amount: number) => {
+    try {
+      const response = await adminAPI.updateMeso(characterId, amount);
+
+      if (response.ok) {
+        fetchUsers(); // Refresh the list
+        // Optional: Show success toast instead of alert
+      } else {
+        alert(`Error: ${response.data.error}`);
+      }
+    } catch (error) {
+      console.error('Update meso error:', error);
+      alert('Failed to update Meso');
+    }
+  };
+
+  // View user inventory
+  const viewUserInventory = (userId: number, username: string) => {
+    setSelectedInventoryUser({ userId, username });
+    setShowInventoryModal(true);
+  };
 
   // Fetch users
   const fetchUsers = async () => {
@@ -550,6 +625,11 @@ const AdminPage = () => {
               onlineUsers={onlineUsers}
               onUpdatePassword={handleUpdatePasswordClick}
               onDeleteUser={deleteUser}
+              onToggleBan={toggleUserBan}
+              onUpdateNX={updateNXCredits}
+              onUpdateMeso={updateCharacterMeso}
+              onViewInventory={viewUserInventory}
+              onViewEquipment={viewUserEquipment} // Add this line
             />
           )}
         </div>
@@ -576,6 +656,32 @@ const AdminPage = () => {
         onUpdatePassword={updateUserPassword}
         isUpdating={isUpdatingUser}
       />
+
+      {/* Inventory Modal */}
+      {showInventoryModal && selectedInventoryUser && (
+        <InventoryModal 
+          isOpen={showInventoryModal}
+          onClose={() => {
+            setShowInventoryModal(false);
+            setSelectedInventoryUser(null);
+          }}
+          userId={selectedInventoryUser.userId}
+          username={selectedInventoryUser.username}
+        />
+      )}
+
+      {/* Equipment Modal */}
+      {showEquipmentModal && selectedEquipmentUser && (
+        <EquipmentModal 
+          isOpen={showEquipmentModal}
+          onClose={() => {
+            setShowEquipmentModal(false);
+            setSelectedEquipmentUser(null);
+          }}
+          userId={selectedEquipmentUser.userId}
+          username={selectedEquipmentUser.username}
+        />
+      )}
 
       <style jsx>{`
         @keyframes blob {

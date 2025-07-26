@@ -203,12 +203,32 @@ WHERE TABLE_SCHEMA = DATABASE()
 AND TABLE_NAME IN ('vote_logs', 'vote_webhook_logs')
 ORDER BY TABLE_NAME;
 
--- Show table structures
-SELECT '=== vote_logs table structure ===' as '';
-SHOW CREATE TABLE vote_logs\G
+-- Show table structures (using standard SQL instead of \G)
+SELECT '=== vote_logs table structure ===' as 'Table Structure';
+SELECT 
+    COLUMN_NAME as 'Column',
+    DATA_TYPE as 'Type',
+    IS_NULLABLE as 'Null',
+    COLUMN_KEY as 'Key',
+    COLUMN_DEFAULT as 'Default',
+    EXTRA as 'Extra'
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+AND TABLE_NAME = 'vote_logs'
+ORDER BY ORDINAL_POSITION;
 
-SELECT '=== vote_webhook_logs table structure ===' as '';
-SHOW CREATE TABLE vote_webhook_logs\G
+SELECT '=== vote_webhook_logs table structure ===' as 'Table Structure';
+SELECT 
+    COLUMN_NAME as 'Column',
+    DATA_TYPE as 'Type',
+    IS_NULLABLE as 'Null',
+    COLUMN_KEY as 'Key',
+    COLUMN_DEFAULT as 'Default',
+    EXTRA as 'Extra'
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+AND TABLE_NAME = 'vote_webhook_logs'
+ORDER BY ORDINAL_POSITION;
 
 -- Final summary
 SELECT 

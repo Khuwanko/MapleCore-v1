@@ -1,71 +1,31 @@
 -- ==========================================
--- COMPLETE MAPLECORE DATABASE SETUP
--- Single SQL file for all systems: Forgot Password, Vote System, and Announcements
+-- MAPLECORE COMPLETE SYSTEM SETUP
+-- Includes: Vote System + Forgot Password System + Announcements System
 -- BACKUP YOUR DATABASE BEFORE RUNNING THIS!
+-- Compatible with MySQL 5.7 and 8.0
 -- ==========================================
 
 START TRANSACTION;
 
--- ==========================================
--- SECTION 1: FORGOT PASSWORD SYSTEM
--- ==========================================
+-- ============================================
+-- PART 1: VOTE SYSTEM INSTALLATION
+-- ============================================
 
--- Add new columns to existing accounts table
-ALTER TABLE accounts 
-ADD COLUMN IF NOT EXISTS secret_question_id INT DEFAULT NULL,
-ADD COLUMN IF NOT EXISTS secret_answer VARCHAR(255) DEFAULT NULL,
-ADD COLUMN IF NOT EXISTS password_reset_token VARCHAR(255) DEFAULT NULL,
-ADD COLUMN IF NOT EXISTS password_reset_expires TIMESTAMP NULL DEFAULT NULL;
-
--- Create secret questions table
-CREATE TABLE IF NOT EXISTS secret_questions (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    question_text VARCHAR(500) NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Insert all 15 default secret questions (only if table is empty)
-INSERT IGNORE INTO secret_questions (question_text) VALUES
-('What was the name of your first pet?'),
-('What is your mother''s maiden name?'),
-('What was the name of your first school?'),
-('What city were you born in?'),
-('What is your favorite book?'),
-('What was your childhood nickname?'),
-('What is the name of your favorite teacher?'),
-('What was the make of your first car?'),
-('What is your favorite movie?'),
-('What street did you grow up on?'),
-('What is your favorite food?'),
-('What was the name of your first boss?'),
-('What is your favorite color?'),
-('What was your high school mascot?'),
-('What is your favorite sports team?');
-
--- Create password reset attempts table for security monitoring
-CREATE TABLE IF NOT EXISTS password_reset_attempts (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    account_id INT NOT NULL,
-    ip_address VARCHAR(45) NOT NULL,
-    attempt_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    success BOOLEAN DEFAULT FALSE,
-    INDEX idx_account_time (account_id, attempt_time),
-    INDEX idx_ip_time (ip_address, attempt_time),
-    FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
-);
-
--- ==========================================
--- SECTION 2: VOTE SYSTEM
--- ==========================================
-
--- Drop existing vote-related views and functions if they exist
+-- Drop views first (they depend on tables)
 DROP VIEW IF EXISTS user_vote_summary;
 DROP VIEW IF EXISTS daily_vote_stats;
 DROP VIEW IF EXISTS user_next_vote;
+
+-- Drop functions
 DROP FUNCTION IF EXISTS can_user_vote;
 
--- Drop and recreate vote tables for clean installation
+-- Drop stored procedures if they exist
+DROP PROCEDURE IF EXISTS AddColumnIfNotExists;
+DROP PROCEDURE IF EXISTS DropColumnIfExists;
+DROP PROCEDURE IF EXISTS AddIndexIfNotExists;
+DROP PROCEDURE IF EXISTS DropIndexIfExists;
+
+-- Drop all vote-related tables
 DROP TABLE IF EXISTS vote_webhook_logs;
 DROP TABLE IF EXISTS vote_logs;
 DROP TABLE IF EXISTS vote_sites;
@@ -74,7 +34,7 @@ DROP TABLE IF EXISTS vote_cooldowns;
 DROP TABLE IF EXISTS vote_rewards;
 DROP TABLE IF EXISTS vote_history;
 
--- Create the vote_logs table
+-- Create vote_logs table
 CREATE TABLE vote_logs (
   id INT AUTO_INCREMENT PRIMARY KEY,
   username VARCHAR(50) NOT NULL,
@@ -105,91 +65,7 @@ CREATE TABLE vote_webhook_logs (
   INDEX idx_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ==========================================
--- SECTION 3: ANNOUNCEMENTS SYSTEM
--- ==========================================
-
--- Create announcements table
-CREATE TABLE IF NOT EXISTS announcements (
-  id INT NOT NULL AUTO_INCREMENT,
-  type ENUM('event', 'update', 'maintenance') NOT NULL DEFAULT 'event',
-  title VARCHAR(255) NOT NULL,
-  description TEXT NOT NULL,
-  created_by INT NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  active TINYINT(1) NOT NULL DEFAULT '1',
-  priority INT NOT NULL DEFAULT '0',
-  PRIMARY KEY (id),
-  KEY idx_active (active),
-  KEY idx_priority (priority),
-  KEY idx_created_at (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- ==========================================
--- SECTION 4: ADD INDEXES AND CONSTRAINTS
--- ==========================================
-
--- Add foreign key constraint for secret questions (ignore if already exists)
-SET @fk_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-                  WHERE TABLE_SCHEMA = DATABASE() 
-                  AND TABLE_NAME = 'accounts' 
-                  AND CONSTRAINT_NAME = 'fk_secret_question');
-
-SET @fk_sql = IF(@fk_exists = 0, 
-    'ALTER TABLE accounts ADD CONSTRAINT fk_secret_question FOREIGN KEY (secret_question_id) REFERENCES secret_questions(id)',
-    'SELECT "Foreign key fk_secret_question already exists" as Info');
-
-PREPARE stmt FROM @fk_sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
--- Add indexes for forgot password system (ignore if already exist)
-CREATE INDEX IF NOT EXISTS idx_password_reset_token ON accounts(password_reset_token);
-CREATE INDEX IF NOT EXISTS idx_password_reset_expires ON accounts(password_reset_expires);
-CREATE INDEX IF NOT EXISTS idx_secret_answer ON accounts(secret_answer);
-CREATE INDEX IF NOT EXISTS idx_email ON accounts(email);
-
--- Add indexes for vote system on accounts table
-CREATE INDEX IF NOT EXISTS idx_accounts_name ON accounts(name);
-CREATE INDEX IF NOT EXISTS idx_accounts_votepoints ON accounts(votepoints);
-
--- ==========================================
--- SECTION 5: FIX PIN AND PIC COLUMNS
--- ==========================================
-
--- Check if PIN column exists and modify it to allow NULL
-SET @pin_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
-                   WHERE TABLE_SCHEMA = DATABASE() 
-                   AND TABLE_NAME = 'accounts' 
-                   AND COLUMN_NAME = 'pin');
-
-SET @pin_sql = IF(@pin_exists > 0, 
-    'ALTER TABLE accounts MODIFY COLUMN pin VARCHAR(255) NULL DEFAULT NULL',
-    'SELECT "PIN column does not exist, skipping..." as Info');
-
-PREPARE stmt FROM @pin_sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
--- Check if PIC column exists and modify it to allow NULL
-SET @pic_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
-                   WHERE TABLE_SCHEMA = DATABASE() 
-                   AND TABLE_NAME = 'accounts' 
-                   AND COLUMN_NAME = 'pic');
-
-SET @pic_sql = IF(@pic_exists > 0, 
-    'ALTER TABLE accounts MODIFY COLUMN pic VARCHAR(255) NULL DEFAULT NULL',
-    'SELECT "PIC column does not exist, skipping..." as Info');
-
-PREPARE stmt FROM @pic_sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
--- ==========================================
--- SECTION 6: CREATE VOTE SYSTEM VIEWS
--- ==========================================
-
--- User vote summary view
+-- Create vote system views
 CREATE VIEW user_vote_summary AS
 SELECT 
   username,
@@ -202,7 +78,6 @@ SELECT
 FROM vote_logs
 GROUP BY username;
 
--- Daily vote statistics view
 CREATE VIEW daily_vote_stats AS
 SELECT 
   DATE(vote_time) as vote_date,
@@ -216,7 +91,6 @@ FROM vote_logs
 GROUP BY DATE(vote_time), site
 ORDER BY vote_date DESC;
 
--- User next vote availability view
 CREATE VIEW user_next_vote AS
 SELECT 
   username,
@@ -234,10 +108,7 @@ FROM vote_logs
 WHERE status = 'success'
 GROUP BY username, site;
 
--- ==========================================
--- SECTION 7: CREATE VOTE HELPER FUNCTION
--- ==========================================
-
+-- Create vote helper function
 DELIMITER $$
 
 CREATE FUNCTION can_user_vote(p_username VARCHAR(50), p_site VARCHAR(50))
@@ -267,61 +138,269 @@ END$$
 
 DELIMITER ;
 
+-- ============================================
+-- PART 2: FORGOT PASSWORD SYSTEM
+-- ============================================
+
+-- Drop forgot password related tables first
+DROP TABLE IF EXISTS password_reset_attempts;
+DROP TABLE IF EXISTS secret_questions;
+
+-- Drop foreign key constraint if exists
+SET @fk_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
+                  WHERE TABLE_SCHEMA = DATABASE() 
+                  AND TABLE_NAME = 'accounts' 
+                  AND CONSTRAINT_NAME = 'fk_secret_question');
+
+SET @sql = IF(@fk_exists > 0, 
+    'ALTER TABLE accounts DROP FOREIGN KEY fk_secret_question',
+    'SELECT "fk_secret_question does not exist" as Info');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Check and add columns to accounts table if they don't exist
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                   WHERE TABLE_SCHEMA = DATABASE() 
+                   AND TABLE_NAME = 'accounts' 
+                   AND COLUMN_NAME = 'secret_question_id');
+
+SET @sql = IF(@col_exists = 0, 
+    'ALTER TABLE accounts ADD COLUMN secret_question_id INT DEFAULT NULL',
+    'SELECT "secret_question_id already exists" as Info');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                   WHERE TABLE_SCHEMA = DATABASE() 
+                   AND TABLE_NAME = 'accounts' 
+                   AND COLUMN_NAME = 'secret_answer');
+
+SET @sql = IF(@col_exists = 0, 
+    'ALTER TABLE accounts ADD COLUMN secret_answer VARCHAR(255) DEFAULT NULL',
+    'SELECT "secret_answer already exists" as Info');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                   WHERE TABLE_SCHEMA = DATABASE() 
+                   AND TABLE_NAME = 'accounts' 
+                   AND COLUMN_NAME = 'password_reset_token');
+
+SET @sql = IF(@col_exists = 0, 
+    'ALTER TABLE accounts ADD COLUMN password_reset_token VARCHAR(255) DEFAULT NULL',
+    'SELECT "password_reset_token already exists" as Info');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                   WHERE TABLE_SCHEMA = DATABASE() 
+                   AND TABLE_NAME = 'accounts' 
+                   AND COLUMN_NAME = 'password_reset_expires');
+
+SET @sql = IF(@col_exists = 0, 
+    'ALTER TABLE accounts ADD COLUMN password_reset_expires TIMESTAMP NULL DEFAULT NULL',
+    'SELECT "password_reset_expires already exists" as Info');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Create secret questions table
+CREATE TABLE secret_questions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    question_text VARCHAR(500) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert default secret questions
+INSERT INTO secret_questions (question_text) VALUES
+('What was the name of your first pet?'),
+('What is your mother''s maiden name?'),
+('What was the name of your first school?'),
+('What city were you born in?'),
+('What is your favorite book?'),
+('What was your childhood nickname?'),
+('What is the name of your favorite teacher?'),
+('What was the make of your first car?'),
+('What is your favorite movie?'),
+('What street did you grow up on?'),
+('What is your favorite food?'),
+('What was the name of your first boss?'),
+('What is your favorite color?'),
+('What was your high school mascot?'),
+('What is your favorite sports team?');
+
+-- Create password reset attempts table
+CREATE TABLE password_reset_attempts (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    account_id INT NOT NULL,
+    ip_address VARCHAR(45) NOT NULL,
+    attempt_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    success BOOLEAN DEFAULT FALSE,
+    INDEX idx_account_time (account_id, attempt_time),
+    INDEX idx_ip_time (ip_address, attempt_time),
+    FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+);
+
+-- Add foreign key constraint for secret questions
+ALTER TABLE accounts 
+ADD CONSTRAINT fk_secret_question 
+FOREIGN KEY (secret_question_id) REFERENCES secret_questions(id);
+
+-- ============================================
+-- PART 3: CREATE INDEXES AND FIX COLUMNS
+-- ============================================
+
+-- Create procedure to safely add indexes
+DELIMITER $$
+
+CREATE PROCEDURE AddIndexIfNotExists(
+    IN tableName VARCHAR(128),
+    IN indexName VARCHAR(128),
+    IN indexColumns VARCHAR(256)
+)
+BEGIN
+    IF NOT EXISTS (
+        SELECT * FROM information_schema.statistics
+        WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = tableName
+        AND INDEX_NAME = indexName
+    ) THEN
+        SET @sql = CONCAT('ALTER TABLE `', tableName, '` ADD INDEX `', indexName, '` (', indexColumns, ')');
+        PREPARE stmt FROM @sql;
+        EXECUTE stmt;
+        DEALLOCATE PREPARE stmt;
+    END IF;
+END$$
+
+DELIMITER ;
+
+-- Add all necessary indexes
+CALL AddIndexIfNotExists('accounts', 'idx_accounts_name', 'name');
+CALL AddIndexIfNotExists('accounts', 'idx_accounts_votepoints', 'votepoints');
+CALL AddIndexIfNotExists('accounts', 'idx_password_reset_token', 'password_reset_token');
+CALL AddIndexIfNotExists('accounts', 'idx_password_reset_expires', 'password_reset_expires');
+CALL AddIndexIfNotExists('accounts', 'idx_secret_answer', 'secret_answer');
+CALL AddIndexIfNotExists('accounts', 'idx_email', 'email');
+
+-- Fix PIN and PIC columns to allow NULL
+SET @pin_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                   WHERE TABLE_SCHEMA = DATABASE() 
+                   AND TABLE_NAME = 'accounts' 
+                   AND COLUMN_NAME = 'pin');
+
+SET @pin_sql = IF(@pin_exists > 0, 
+    'ALTER TABLE accounts MODIFY COLUMN pin VARCHAR(255) NULL DEFAULT NULL',
+    'SELECT "PIN column does not exist, skipping..." as Info');
+
+PREPARE stmt FROM @pin_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @pic_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                   WHERE TABLE_SCHEMA = DATABASE() 
+                   AND TABLE_NAME = 'accounts' 
+                   AND COLUMN_NAME = 'pic');
+
+SET @pic_sql = IF(@pic_exists > 0, 
+    'ALTER TABLE accounts MODIFY COLUMN pic VARCHAR(255) NULL DEFAULT NULL',
+    'SELECT "PIC column does not exist, skipping..." as Info');
+
+PREPARE stmt FROM @pic_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Clean up temporary procedure
+DROP PROCEDURE IF EXISTS AddIndexIfNotExists;
+
+-- ============================================
+-- PART 4: ANNOUNCEMENTS SYSTEM
+-- ============================================
+
+-- Drop announcements table if exists
+DROP TABLE IF EXISTS `announcements`;
+
+-- Create announcements table fresh
+CREATE TABLE `announcements` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `type` ENUM('event', 'update', 'maintenance') NOT NULL DEFAULT 'event',
+  `title` VARCHAR(255) NOT NULL,
+  `description` TEXT NOT NULL,
+  `created_by` INT NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `active` TINYINT(1) NOT NULL DEFAULT '1',
+  `priority` INT NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `idx_active` (`active`),
+  KEY `idx_priority` (`priority`),
+  KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
 -- Commit all changes
 COMMIT;
 
--- ==========================================
--- SECTION 8: VERIFICATION AND RESULTS
--- ==========================================
+-- ============================================
+-- VERIFICATION AND SUMMARY
+-- ============================================
 
--- Display results for forgot password system
-SELECT '🔐 FORGOT PASSWORD SYSTEM' as System_Component;
-SELECT 'Secret questions created:' as Info, COUNT(*) as Count FROM secret_questions;
+SELECT '✅ COMPLETE MAPLECORE SYSTEM INSTALLATION FINISHED!' AS Status;
 
--- Display results for vote system
-SELECT '🗳️ VOTE SYSTEM' as System_Component;
+-- Vote System Summary
+SELECT '=== VOTE SYSTEM STATUS ===' as 'System Check';
 SELECT 
-    TABLE_NAME as 'Vote Table',
-    TABLE_ROWS as 'Rows',
-    DATE_FORMAT(CREATE_TIME, '%Y-%m-%d %H:%i:%s') as 'Created'
+    TABLE_NAME as 'Vote Tables Created',
+    TABLE_ROWS as 'Rows'
 FROM information_schema.TABLES
 WHERE TABLE_SCHEMA = DATABASE()
 AND TABLE_NAME IN ('vote_logs', 'vote_webhook_logs')
 ORDER BY TABLE_NAME;
 
--- Display results for announcements system
-SELECT '📢 ANNOUNCEMENTS SYSTEM' as System_Component;
+-- Password Reset System Summary
+SELECT '=== PASSWORD RESET SYSTEM STATUS ===' as 'System Check';
 SELECT 
-    TABLE_NAME as 'Announcements Table',
-    TABLE_ROWS as 'Rows',
-    DATE_FORMAT(CREATE_TIME, '%Y-%m-%d %H:%i:%s') as 'Created'
-FROM information_schema.TABLES
-WHERE TABLE_SCHEMA = DATABASE()
-AND TABLE_NAME = 'announcements';
-
--- Show accounts table structure (updated)
-SELECT '👤 ACCOUNTS TABLE UPDATES' as System_Component;
-DESCRIBE accounts;
-
--- Check PIN and PIC column status
-SELECT 'PIN/PIC Column Status:' as Info;
+    'Secret Questions' as 'Component',
+    COUNT(*) as 'Count'
+FROM secret_questions
+UNION ALL
 SELECT 
-    COLUMN_NAME,
-    DATA_TYPE,
-    IS_NULLABLE,
-    COLUMN_DEFAULT
+    'Password Reset Attempts Table' as 'Component',
+    CASE 
+        WHEN EXISTS (SELECT 1 FROM information_schema.TABLES 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'password_reset_attempts')
+        THEN 'Created'
+        ELSE 'Failed'
+    END as 'Count';
+
+-- Announcements System Summary
+SELECT '=== ANNOUNCEMENTS SYSTEM STATUS ===' as 'System Check';
+SELECT 
+    CASE 
+        WHEN EXISTS (SELECT 1 FROM information_schema.TABLES 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'announcements')
+        THEN 'Announcements Table Created'
+        ELSE 'Announcements Table Failed'
+    END as 'Status';
+
+-- Show important columns in accounts table
+SELECT '=== ACCOUNTS TABLE MODIFICATIONS ===' as 'System Check';
+SELECT 
+    COLUMN_NAME as 'Column',
+    DATA_TYPE as 'Type',
+    IS_NULLABLE as 'Nullable',
+    COLUMN_DEFAULT as 'Default'
 FROM INFORMATION_SCHEMA.COLUMNS 
 WHERE TABLE_SCHEMA = DATABASE() 
 AND TABLE_NAME = 'accounts' 
-AND COLUMN_NAME IN ('pin', 'pic', 'secret_question_id', 'secret_answer');
+AND COLUMN_NAME IN ('secret_question_id', 'secret_answer', 'password_reset_token', 
+                    'password_reset_expires', 'pin', 'pic', 'votepoints')
+ORDER BY COLUMN_NAME;
 
--- Show all indexes on accounts table
-SELECT 'Accounts Table Indexes:' as Info;
-SHOW INDEX FROM accounts;
-
--- Final success messages
-SELECT '✅ COMPLETE MAPLECORE SYSTEM INSTALLED SUCCESSFULLY!' as Status;
-SELECT '🔐 Forgot Password System: Ready' as Forgot_Password_Status;
-SELECT '🗳️ Vote System: Ready' as Vote_System_Status;
-SELECT '📢 Announcements System: Ready' as Announcements_Status;
-SELECT '🔧 PIN and PIC columns: Now allow NULL values' as PIN_PIC_Status;
+-- Final summary
+SELECT '🎉 Vote System, Forgot Password System, and Announcements System installed successfully!' as 'Final Status';
+SELECT '📝 Remember to configure your environment variables for the vote system!' as 'Important Note';

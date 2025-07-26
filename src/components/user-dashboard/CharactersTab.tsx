@@ -313,7 +313,7 @@ const CharactersTab: React.FC<CharactersTabProps> = ({
   refreshData
 }) => {
   // Global character positioning settings
-  const GLOBAL_CHARACTER_SIZE = 1.1;
+  const GLOBAL_CHARACTER_SIZE = 1.2;
   const GLOBAL_CHARACTER_X = 0;
   const GLOBAL_CHARACTER_Y = 30;
 

@@ -811,7 +811,7 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
                               exp: player.exp || 0,
                               meso: player.meso || 0
                             }}
-                            scale={1.0}
+                            scale={1.1}
                           />
                         </div>
                       </div>

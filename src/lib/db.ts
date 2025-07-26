@@ -94,33 +94,140 @@ export async function transaction<T>(
 // ==========================================
 
 export const secureQueries = {
-  // User queries
+  // User queries - UPDATED with secret question support
   getUserByUsername: async (username: string) => {
     return queryOne(
-      'SELECT id, name, password, banned FROM accounts WHERE name = ? LIMIT 1',
+      `SELECT id, name, password, banned, email, nxCredit, votepoints, 
+              secret_question_id, secret_answer, password_reset_token, password_reset_expires
+       FROM accounts WHERE name = ? LIMIT 1`,
       [username]
+    );
+  },
+
+  getUserByEmail: async (email: string) => {
+    return queryOne(
+      `SELECT id, name, password, banned, email, nxCredit, votepoints, 
+              secret_question_id, secret_answer
+       FROM accounts WHERE email = ? LIMIT 1`,
+      [email]
     );
   },
 
   getUserById: async (userId: number) => {
     return queryOne(
-      'SELECT id, name, email, createdat, nxCredit, votepoints FROM accounts WHERE id = ? LIMIT 1',
+      `SELECT id, name, email, createdat, nxCredit, votepoints, 
+              secret_question_id, secret_answer
+       FROM accounts WHERE id = ? LIMIT 1`,
       [userId]
     );
   },
 
-  createUser: async (username: string, hashedPassword: string, email: string, birthday: string) => {
-    const result = await query(
-      'INSERT INTO accounts (name, password, email, birthday, createdat) VALUES (?, ?, ?, ?, NOW())',
-      [username, hashedPassword, email, birthday]
-    );
-    return (result as any).insertId;
+  // UPDATED: Create user with secret question
+  createUser: async (username: string, hashedPassword: string, email: string, birthday: string, secretQuestionId?: number, secretAnswer?: string) => {
+    if (secretQuestionId && secretAnswer) {
+      const result = await query(
+        `INSERT INTO accounts (name, password, email, birthday, secret_question_id, secret_answer, createdat) 
+         VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+        [username, hashedPassword, email, birthday, secretQuestionId, secretAnswer.toLowerCase().trim()]
+      );
+      return (result as any).insertId;
+    } else {
+      // Legacy support for accounts without secret questions
+      const result = await query(
+        'INSERT INTO accounts (name, password, email, birthday, createdat) VALUES (?, ?, ?, ?, NOW())',
+        [username, hashedPassword, email, birthday]
+      );
+      return (result as any).insertId;
+    }
   },
 
   updatePassword: async (userId: number, hashedPassword: string) => {
     await query(
       'UPDATE accounts SET password = ? WHERE id = ?',
       [hashedPassword, userId]
+    );
+  },
+
+  // NEW: Reset password and clear PIN/PIC for security
+  resetUserPassword: async (userId: number, newHashedPassword: string) => {
+    await query(
+      `UPDATE accounts 
+       SET password = ?, 
+           password_reset_token = NULL, 
+           password_reset_expires = NULL,
+           pin = NULL,
+           pic = NULL
+       WHERE id = ?`,
+      [newHashedPassword, userId]
+    );
+  },
+
+  // NEW: Secret Questions Management
+  getSecretQuestions: async () => {
+    return query(
+      'SELECT id, question_text, is_active, created_at FROM secret_questions WHERE is_active = TRUE ORDER BY id'
+    );
+  },
+
+  getSecretQuestionById: async (questionId: number) => {
+    return queryOne(
+      'SELECT id, question_text, is_active, created_at FROM secret_questions WHERE id = ? AND is_active = TRUE',
+      [questionId]
+    );
+  },
+
+  getUserSecretQuestion: async (userId: number) => {
+    const result = await queryOne<{ question_text: string }>(
+      `SELECT sq.question_text 
+       FROM accounts a 
+       JOIN secret_questions sq ON a.secret_question_id = sq.id 
+       WHERE a.id = ? AND sq.is_active = TRUE`,
+      [userId]
+    );
+    return result?.question_text || null;
+  },
+
+  updateSecretQuestion: async (userId: number, secretQuestionId: number, secretAnswer: string) => {
+    await query(
+      'UPDATE accounts SET secret_question_id = ?, secret_answer = ? WHERE id = ?',
+      [secretQuestionId, secretAnswer.toLowerCase().trim(), userId]
+    );
+  },
+
+  // NEW: Password Reset Attempt Logging
+  logPasswordResetAttempt: async (accountId: number, ipAddress: string, success: boolean) => {
+    await query(
+      'INSERT INTO password_reset_attempts (account_id, ip_address, success) VALUES (?, ?, ?)',
+      [accountId, ipAddress, success]
+    );
+  },
+
+  getPasswordResetAttempts: async (accountId?: number, ipAddress?: string, timeWindowMinutes: number = 60) => {
+    let sql = `
+      SELECT COUNT(*) as count 
+      FROM password_reset_attempts 
+      WHERE attempt_time > DATE_SUB(NOW(), INTERVAL ? MINUTE)
+    `;
+    const params: any[] = [timeWindowMinutes];
+
+    if (accountId) {
+      sql += ' AND account_id = ?';
+      params.push(accountId);
+    }
+
+    if (ipAddress) {
+      sql += ' AND ip_address = ?';
+      params.push(ipAddress);
+    }
+
+    const result = await queryOne<{ count: number }>(sql, params);
+    return result?.count || 0;
+  },
+
+  cleanupOldPasswordResetAttempts: async (daysOld: number = 30) => {
+    await query(
+      'DELETE FROM password_reset_attempts WHERE attempt_time < DATE_SUB(NOW(), INTERVAL ? DAY)',
+      [daysOld]
     );
   },
 

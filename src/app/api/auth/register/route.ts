@@ -1,22 +1,16 @@
 // src/app/api/auth/register/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { registerSchema, rateLimit } from '@/lib/security/validation';
+import { registerSchema, registerRateLimit } from '@/lib/security/validation';
 import { hashPassword, checkPasswordStrength, generateToken } from '@/lib/security/password';
 import { secureQueries } from '@/lib/db';
 import { z } from 'zod';
-
-// Rate limiting: 3 registration attempts per hour per IP
-const registerRateLimit = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 3
-});
 
 async function registerHandler(request: NextRequest) {
   try {
     // Parse and validate request body
     const body = await request.json();
     const validatedData = registerSchema.parse(body);
-    const { username, email, password, birthday } = validatedData;
+    const { username, email, password, birthday, secretQuestionId, secretAnswer } = validatedData;
 
     // Additional password strength check
     const strength = checkPasswordStrength(password);
@@ -39,15 +33,35 @@ async function registerHandler(request: NextRequest) {
       );
     }
 
+    // Check if email already exists
+    const existingEmail = await secureQueries.getUserByEmail(email);
+    if (existingEmail) {
+      return NextResponse.json(
+        { error: 'Email already registered' },
+        { status: 409 }
+      );
+    }
+
+    // Validate secret question exists
+    const secretQuestion = await secureQueries.getSecretQuestionById(secretQuestionId);
+    if (!secretQuestion || !secretQuestion.is_active) {
+      return NextResponse.json(
+        { error: 'Invalid security question selected' },
+        { status: 400 }
+      );
+    }
+
     // Hash password securely
     const hashedPassword = await hashPassword(password);
 
-    // Create user account
+    // Create user account with secret question
     const userId = await secureQueries.createUser(
       username,
       hashedPassword,
       email,
-      birthday
+      birthday,
+      secretQuestionId,
+      secretAnswer // Will be automatically sanitized in secureQueries.createUser
     );
 
     // Generate token for auto-login
@@ -61,7 +75,9 @@ async function registerHandler(request: NextRequest) {
       message: 'Account created successfully',
       user: {
         id: userId,
-        username
+        username,
+        email,
+        hasSecretQuestion: true
       }
     }, { status: 201 });
 
@@ -69,7 +85,7 @@ async function registerHandler(request: NextRequest) {
     response.cookies.set('auth-token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax', // Changed for better compatibility
       maxAge: 60 * 60 * 24 * 7, // 7 days
       path: '/'
     });
@@ -83,7 +99,10 @@ async function registerHandler(request: NextRequest) {
       return NextResponse.json(
         { 
           error: 'Validation failed',
-          details: error.issues 
+          details: error.issues.map(issue => ({
+            field: issue.path.join('.'),
+            message: issue.message
+          }))
         },
         { status: 400 }
       );
@@ -91,7 +110,7 @@ async function registerHandler(request: NextRequest) {
 
     console.error('Registration error:', error);
     return NextResponse.json(
-      { error: 'Registration failed' },
+      { error: 'Registration failed. Please try again.' },
       { status: 500 }
     );
   }

@@ -1,4 +1,4 @@
--- Complete Vote System Fresh Installation Script for MapleKaede
+-- Complete Vote System Fresh Installation Script for MapleCore
 -- This script drops all existing vote-related tables and recreates them from scratch
 -- Compatible with MySQL 5.7 and 8.0
 

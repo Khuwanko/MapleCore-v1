@@ -10,6 +10,7 @@ async function apiCall(endpoint: string, options?: RequestInit) {
         'Content-Type': 'application/json',
         ...options?.headers,
       },
+      credentials: 'include', // Important for cookies
     });
 
     // Handle different response types
@@ -37,7 +38,7 @@ async function apiCall(endpoint: string, options?: RequestInit) {
 }
 
 // ==========================================
-// AUTH API - Used in auth/page.tsx
+// AUTH API - UPDATED with forgot password support
 // ==========================================
 export const authAPI = {
   login: async (username: string, password: string) => {
@@ -47,29 +48,83 @@ export const authAPI = {
     });
   },
 
+  // UPDATED: Register with secret questions
   register: async (userData: {
     username: string;
     email: string;
     password: string;
     birthday: string;
+    secretQuestionId: number;
+    secretAnswer: string;
   }) => {
     return apiCall('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
   },
+
+  // NEW: Forgot password
+  forgotPassword: async (forgotData: {
+    username: string;
+    secretAnswer: string;
+    newPassword: string;
+  }) => {
+    return apiCall('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify(forgotData),
+    });
+  },
+
+  // NEW: Get secret questions
+  getSecretQuestions: async () => {
+    return apiCall('/api/auth/secret-question');
+  },
+
+  // NEW: Get user's secret question
+  getUserSecretQuestion: async (username: string) => {
+    return apiCall(`/api/auth/secret-question/${encodeURIComponent(username)}`);
+  },
+
+  // NEW: Logout
+  logout: async () => {
+    return apiCall('/api/auth/logout', {
+      method: 'POST',
+    });
+  },
+
+  // NEW: Check auth status
+  checkAuth: async () => {
+    return apiCall('/api/auth/me');
+  },
+
+  // NEW: Update secret question (for logged-in users)
+  updateSecretQuestion: async (secretQuestionId: number, secretAnswer: string) => {
+    return apiCall('/api/auth/update-secret-question', {
+      method: 'POST',
+      body: JSON.stringify({ secretQuestionId, secretAnswer }),
+    });
+  },
 };
 
 // ==========================================
-// ADMIN API - Used in AdminPage.tsx
+// ADMIN API - Enhanced with better error handling
 // ==========================================
 export const adminAPI = {
   checkAccess: async () => {
     return apiCall('/api/admin/check');
   },
 
-  getUsers: async () => {
-    return apiCall('/api/admin/users');
+  getUsers: async (page: number = 1, limit: number = 20, search?: string) => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+    
+    if (search) {
+      params.append('search', search);
+    }
+    
+    return apiCall(`/api/admin/users?${params.toString()}`);
   },
 
   updateUserPassword: async (userId: number, newPassword: string) => {
@@ -108,11 +163,26 @@ export const adminAPI = {
 
   getUserInventory: async (userId: number) => {
     return apiCall(`/api/admin/users/${userId}/inventory`);
-  }
+  },
+
+  // NEW: Get user details with characters
+  getUserDetails: async (userId: number) => {
+    return apiCall(`/api/admin/users/${userId}/details`);
+  },
+
+  // NEW: Get admin activity logs
+  getActivityLogs: async (page: number = 1, limit: number = 50) => {
+    return apiCall(`/api/admin/logs?page=${page}&limit=${limit}`);
+  },
+
+  // NEW: Get password reset attempts
+  getPasswordResetAttempts: async (page: number = 1, limit: number = 50) => {
+    return apiCall(`/api/admin/password-reset-attempts?page=${page}&limit=${limit}`);
+  },
 };
 
 // ==========================================
-// DASHBOARD API - Used in UserDashboard.tsx
+// DASHBOARD API - Enhanced with caching support
 // ==========================================
 export const dashboardAPI = {
   getStats: async () => {
@@ -142,14 +212,31 @@ export const dashboardAPI = {
     
     return apiCall(url);
   },
+
+  // NEW: Get character details with equipment
+  getCharacterDetails: async (characterId: number) => {
+    return apiCall(`/api/dashboard/characters/${characterId}`);
+  },
+
+  // NEW: Update user profile
+  updateProfile: async (profileData: {
+    email?: string;
+    secretQuestionId?: number;
+    secretAnswer?: string;
+  }) => {
+    return apiCall('/api/dashboard/profile', {
+      method: 'POST',
+      body: JSON.stringify(profileData),
+    });
+  },
 };
 
 // ==========================================
-// ANNOUNCEMENTS API - Used in both AdminPage.tsx and UserDashboard.tsx
+// ANNOUNCEMENTS API - Enhanced with pagination
 // ==========================================
 export const announcementsAPI = {
-  getAll: async () => {
-    return apiCall('/api/announcements');
+  getAll: async (page: number = 1, limit: number = 10) => {
+    return apiCall(`/api/announcements?page=${page}&limit=${limit}`);
   },
 
   create: async (announcement: {
@@ -164,54 +251,183 @@ export const announcementsAPI = {
     });
   },
 
+  update: async (id: number, announcement: {
+    type?: 'event' | 'update' | 'maintenance';
+    title?: string;
+    description?: string;
+    priority?: number;
+  }) => {
+    return apiCall(`/api/announcements/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(announcement),
+    });
+  },
+
   delete: async (id: number) => {
     return apiCall(`/api/announcements?id=${id}`, {
       method: 'DELETE',
     });
   },
+
+  // NEW: Get single announcement
+  getById: async (id: number) => {
+    return apiCall(`/api/announcements/${id}`);
+  },
 };
 
 // ==========================================
-// VOTE API - Used in UserDashboard.tsx
+// VOTE API - Enhanced with better error handling
 // ==========================================
 export const voteAPI = {
   getStatus: async () => {
     return apiCall('/api/vote/status');
   },
+
+  // NEW: Submit vote
+  submitVote: async (siteId: number) => {
+    return apiCall('/api/vote/submit', {
+      method: 'POST',
+      body: JSON.stringify({ siteId }),
+    });
+  },
+
+  // NEW: Get vote history
+  getHistory: async (page: number = 1, limit: number = 20) => {
+    return apiCall(`/api/vote/history?page=${page}&limit=${limit}`);
+  },
 };
 
 // ==========================================
-// SERVER API - Used in MapleKaedeLanding.tsx
+// SERVER API - Enhanced with caching
 // ==========================================
 export const serverAPI = {
   getStatus: async () => {
     return apiCall('/api/server/status');
   },
+
+  // NEW: Get server statistics
+  getStats: async () => {
+    return apiCall('/api/server/stats');
+  },
+
+  // NEW: Get server events
+  getEvents: async () => {
+    return apiCall('/api/server/events');
+  },
 };
 
 // ==========================================
-// DISCORD API - Used in MapleKaedeLanding.tsx
+// DISCORD API - Enhanced with fallback
 // ==========================================
 export const discordAPI = {
-  getServerInfo: async (serverId: string = '1388386202805342293') => {
+  getServerInfo: async () => {
+    const serverId = process.env.NEXT_PUBLIC_DISCORD_SERVER_ID || '1388386202805342293';
+    
     try {
       const response = await fetch(`https://discord.com/api/guilds/${serverId}/widget.json`);
       if (response.ok) {
         const data = await response.json();
         return {
-          online: data.presence_count || 0,
-          members: data.member_count || 0,
-          loading: false
+          ok: true,
+          data: {
+            online: data.presence_count || 0,
+            members: data.member_count || 0,
+            loading: false,
+            fallback: false
+          }
         };
       }
       throw new Error('Failed to fetch Discord data');
     } catch (error) {
+      console.warn('Discord API error, using fallback data:', error);
       // Return fallback data
       return {
-        online: 127,
-        members: 2847,
-        loading: false
+        ok: true,
+        data: {
+          online: 127,
+          members: 2847,
+          loading: false,
+          fallback: true
+        }
       };
     }
   },
 };
+
+// ==========================================
+// UTILITY FUNCTIONS
+// ==========================================
+
+// NEW: Handle API errors consistently
+export function handleApiError(error: any, defaultMessage: string = 'An error occurred') {
+  if (error?.data?.error) {
+    return error.data.error;
+  }
+  if (error?.message) {
+    return error.message;
+  }
+  return defaultMessage;
+}
+
+// NEW: Check if user is authenticated
+export async function checkAuthentication() {
+  try {
+    const response = await authAPI.checkAuth();
+    return response.ok ? response.data : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+// NEW: Logout and cleanup
+export async function logout() {
+  try {
+    await authAPI.logout();
+    // Clear local storage
+    localStorage.removeItem('user');
+    // Redirect to login
+    window.location.href = '/auth';
+  } catch (error) {
+    console.error('Logout error:', error);
+    // Force cleanup even if API call fails
+    localStorage.removeItem('user');
+    window.location.href = '/auth';
+  }
+}
+
+// NEW: Format API responses consistently
+export function formatApiResponse<T>(response: any): {
+  success: boolean;
+  data?: T;
+  error?: string;
+  status: number;
+} {
+  return {
+    success: response.ok,
+    data: response.ok ? response.data : undefined,
+    error: response.ok ? undefined : (response.data?.error || 'Unknown error'),
+    status: response.status
+  };
+}
+
+// NEW: Retry failed API calls
+export async function retryApiCall<T>(
+  apiFunction: () => Promise<T>,
+  maxRetries: number = 3,
+  delay: number = 1000
+): Promise<T> {
+  let lastError: any;
+
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await apiFunction();
+    } catch (error) {
+      lastError = error;
+      if (i < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+      }
+    }
+  }
+
+  throw lastError;
+}

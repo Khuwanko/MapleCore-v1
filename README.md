@@ -1,6 +1,7 @@
 
 # MapleKaede CMS 🍁
 A Modern, Full-Featured MapleStory v83 Private Server Website
+MapleCore discord server (https://discord.gg/dHdckYGsTT)
 
 ## 🌟 Overview
 MapleKaede CMS is a cutting-edge Content Management System built specifically for MapleStory v83 private servers. Powered by Next.js 15 and TypeScript, it delivers a premium web experience with modern features, stunning animations, and enterprise-grade security.
@@ -227,6 +228,5 @@ MapleStory community, Cosmicms, Next.js, React contributors
 ## 📞 Support
 - Discord: ARtistjr
 - GitHub Issues join us at MapleCore discord server
-(https://discord.gg/dHdckYGsTT)
 
 Made with ❤️ for the MapleStory community.

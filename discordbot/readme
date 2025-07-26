@@ -1,0 +1,107 @@
+# Discord Announcement Bot - MapleCore 🤖
+
+Automatically posts your MySQL database announcements to Discord. Perfect for game servers!
+
+## What it does
+- Checks your database every 30 seconds
+- Posts new announcements to Discord as pretty embeds
+- Never reposts the same announcement
+
+## Setup (10 minutes)
+
+### 1. Install Python stuff
+```bash
+pip install discord.py mysql-connector-python PyNaCl
+```
+
+### 2. Create Discord Bot
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. New Application → Name it → Create
+3. Bot section → Add Bot → Copy token
+4. Scroll down → Turn ON "MESSAGE CONTENT INTENT"
+5. OAuth2 → URL Generator → Check `bot` → Check these permissions:
+   - Send Messages
+   - Embed Links  
+   - View Channels
+6. Copy URL → Open it → Add to your server
+
+### 3. Setup Files
+Create these 3 files in a folder:
+
+**discord_bot.py** - Copy the bot code  
+**config.json** - Your settings:
+```json
+{
+  "discord": {
+    "bot_token": "bot_token",
+    "announcement_channel_id": 13323245243232,
+    "ping_role_id": 123456789012345678
+  },
+  "database": {
+    "host": "localhost",
+    "port": 3306,
+    "user": "your_db_user",
+    "password": "your_db_password",
+    "database": "your_database"
+  },
+  "bot": {
+    "prefix": "!",
+    "ping_priority_threshold": 5,
+    "reactions": ["📢", "👀", "🍄", "⭐"],
+    "footer_icon_url": "",
+    "thumbnails": {
+      "event": "",
+      "update": "",
+      "maintenance": "",
+      "default": ""
+    }
+  }
+}
+```
+
+**Getting Channel ID**: Discord Settings → Advanced → Developer Mode ON → Right-click channel → Copy ID
+
+### 4. Run it
+```bash
+python discord_bot.py
+```
+
+Done! 🎉
+
+## First Time? (Prevent spam)
+Don't want old announcements posted? Create `last_announcement.txt` with your latest announcement ID before starting.
+
+## Bot Commands
+- `!status` - Check if bot is working
+- `!test` - Test announcement (admin only)
+
+## Troubleshooting
+
+**Bot won't start?**
+- Wrong token or channel ID
+- Config.json formatting error
+
+**No announcements posting?**
+- Check database connection
+- Make sure announcements have `active = 1`
+- Bot needs Send Messages permission in channel
+
+**Permission errors?**
+- Re-invite bot with correct permissions
+- Check bot can see the channel
+
+## Keep it Running 24/7
+
+**Windows**: Task Scheduler  
+**Linux**: 
+```bash
+# Install PM2
+npm install -g pm2
+# Run bot
+pm2 start discord_bot.py
+pm2 save
+pm2 startup
+```
+
+---
+That's it! Your announcements now auto-post to Discord from the MapleCore🚀

@@ -1,0 +1,26 @@
+{
+  "discord": {
+    "bot_token": "bot_token",
+    "announcement_channel_id": 13323245243232,
+    "ping_role_id": 123456789012345678
+  },
+  "database": {
+    "host": "localhost",
+    "port": 3306,
+    "user": "your_db_user",
+    "password": "your_db_password",
+    "database": "your_database"
+  },
+  "bot": {
+    "prefix": "!",
+    "ping_priority_threshold": 5,
+    "reactions": ["📢", "👀", "🍄", "⭐"],
+    "footer_icon_url": "",
+    "thumbnails": {
+      "event": "",
+      "update": "",
+      "maintenance": "",
+      "default": ""
+    }
+  }
+}

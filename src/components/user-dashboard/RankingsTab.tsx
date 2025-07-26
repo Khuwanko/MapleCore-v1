@@ -1,4 +1,3 @@
-// src/components/user-dashboard/RankingsTab.tsx
 'use client';
 
 import React, { useState, useRef, useEffect, startTransition } from 'react';
@@ -261,7 +260,7 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
     setTimeout(() => setIsFilterTransitioning(false), 300);
   };
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
+  const handleSearchSubmit = (e: React.FormEvent | React.MouseEvent) => {
     e.preventDefault();
     const trimmedSearch = searchInput.trim();
     
@@ -315,7 +314,7 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
   };
 
   return (
-    <div className="space-y-8 pb-32">
+    <div className="space-y-6 pb-32">
       <style jsx>{`
         @keyframes sparkle {
           0%, 100% { opacity: 0.3; transform: scale(1); }
@@ -388,150 +387,12 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
           box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
         }
       `}</style>
-      
-      {/* Enhanced Stats Overview */}
-      <div className={`grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 transition-all duration-300 ${isFilterTransitioning ? 'opacity-70' : 'opacity-100'}`}>
-        <div className="group relative bg-gradient-to-br from-orange-50 via-orange-50 to-orange-100 rounded-3xl p-6 border border-orange-200/50 hover:shadow-2xl hover:scale-105 transition-all duration-500 overflow-hidden">
-          <div className="absolute -top-4 -right-4 w-24 h-24 bg-orange-400/20 rounded-full blur-xl" />
-          <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-orange-300/30 rounded-full blur-lg" />
-          
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl shadow-lg group-hover:rotate-12 transition-transform duration-300">
-                <Crown className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xs font-bold text-orange-700 bg-orange-500/20 px-2 py-1 rounded-full">TOP</span>
-            </div>
-            <h3 className="text-2xl font-black text-gray-900 mb-1">Champion</h3>
-            <p className="text-orange-700 font-semibold text-sm mb-2">Top Player</p>
-            {rankings.length > 0 ? (
-              <div>
-                <p className="text-lg font-bold text-gray-900">{rankings[0].name}</p>
-                <p className="text-orange-600 text-sm">Level {rankings[0].level}</p>
-              </div>
-            ) : (
-              <p className="text-orange-600 text-sm">No data</p>
-            )}
-          </div>
-        </div>
 
-        <div className="group relative bg-gradient-to-br from-orange-50 via-orange-50 to-orange-100 rounded-3xl p-6 border border-orange-200/50 hover:shadow-2xl hover:scale-105 transition-all duration-500 overflow-hidden">
-          <div className="absolute -top-4 -right-4 w-24 h-24 bg-orange-400/20 rounded-full blur-xl" />
-          <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-orange-300/30 rounded-full blur-lg" />
-          
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl shadow-lg group-hover:rotate-12 transition-transform duration-300">
-                <TrendingUp className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xs font-bold text-orange-700 bg-orange-500/20 px-2 py-1 rounded-full">YOU</span>
-            </div>
-            <h3 className="text-2xl font-black text-gray-900 mb-1">Your Rank</h3>
-            <p className="text-orange-700 font-semibold text-sm mb-2">Current Position</p>
-            {userRanking ? (
-              <div>
-                <p className="text-lg font-bold text-gray-900">#{userRanking.rank}</p>
-                <p className="text-orange-600 text-sm">Level {userRanking.level}</p>
-              </div>
-            ) : rankings.find(r => r.isCurrentUser) ? (
-              <div>
-                <p className="text-lg font-bold text-orange-600">Top 10!</p>
-                <p className="text-orange-600 text-sm">In current view</p>
-              </div>
-            ) : (
-              <p className="text-orange-600 text-sm">Not ranked</p>
-            )}
-          </div>
-        </div>
-
-        <div className="group relative bg-gradient-to-br from-orange-50 via-orange-50 to-orange-100 rounded-3xl p-6 border border-orange-200/50 hover:shadow-2xl hover:scale-105 transition-all duration-500 overflow-hidden">
-          <div className="absolute -top-4 -right-4 w-24 h-24 bg-orange-400/20 rounded-full blur-xl" />
-          <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-orange-300/30 rounded-full blur-lg" />
-          
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl shadow-lg group-hover:rotate-12 transition-transform duration-300">
-                <Users className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xs font-bold text-orange-700 bg-orange-500/20 px-2 py-1 rounded-full">TOTAL</span>
-            </div>
-            <h3 className="text-2xl font-black text-gray-900 mb-1">{rankingPagination?.totalItems || rankings.length}</h3>
-            <p className="text-orange-700 font-semibold text-sm mb-2">Total Players</p>
-            {rankings.length > 0 && (
-              <p className="text-orange-600 text-sm">
-                Avg: Lv.{Math.round(rankings.reduce((sum, r) => sum + r.level, 0) / rankings.length)}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="group relative bg-gradient-to-br from-orange-50 via-orange-50 to-orange-100 rounded-3xl p-6 border border-orange-200/50 hover:shadow-2xl hover:scale-105 transition-all duration-500 overflow-hidden">
-          <div className="absolute -top-4 -right-4 w-24 h-24 bg-orange-400/20 rounded-full blur-xl" />
-          <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-orange-300/30 rounded-full blur-lg" />
-          
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl shadow-lg group-hover:rotate-12 transition-transform duration-300">
-                <Star className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xs font-bold text-orange-700 bg-orange-500/20 px-2 py-1 rounded-full">MAX</span>
-            </div>
-            <h3 className="text-2xl font-black text-gray-900 mb-1">
-              {rankings.length > 0 ? rankings[0].level : 'N/A'}
-            </h3>
-            <p className="text-orange-700 font-semibold text-sm mb-2">Highest Level</p>
-            {rankings.length > 0 && (
-              <p className="text-orange-600 text-sm">
-                {Math.round((rankings[0].level / 200) * 100)}% to cap
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* User's Ranking Highlight */}
-      {userRanking && !rankings.some(r => r.isCurrentUser) && rankingFilters.job === 'all' && !rankingFilters.search && (
-        <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 rounded-xl mb-6 shadow-lg">
-          <h3 className="text-xl font-semibold mb-3 flex items-center gap-2">
-            <Crown className="w-6 h-6" />
-            Your Best Character
-          </h3>
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-white/20 rounded-lg flex items-center justify-center">
-              <MapleStoryCharacterRenderer 
-                character={{
-                  id: userRanking.id,
-                  name: userRanking.name,
-                  level: userRanking.level,
-                  job: userRanking.jobId.toString(),
-                  skincolor: userRanking.skincolor || 0,
-                  gender: userRanking.gender || 0,
-                  hair: userRanking.hair || 30000,
-                  face: userRanking.face || 20000,
-                  equipment: userRanking.equipment || {},
-                  stats: userRanking.stats || { str: 4, dex: 4, int: 4, luk: 4 },
-                  exp: userRanking.exp || 0,
-                  meso: userRanking.meso || 0
-                }}
-                scale={0.8}
-              />
-            </div>
-            <div>
-              <div className="text-2xl font-bold">#{userRanking.rank}</div>
-              <div className="text-lg">{userRanking.name}</div>
-              <div className="text-blue-100">Level {userRanking.level} {userRanking.job}</div>
-              {userRanking.guild && (
-                <div className="text-blue-200 text-sm">[{userRanking.guild}]</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Rankings Table with integrated search and filters */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-8">
-        {/* Table Header with Search */}
+      {/* Rankings Table with integrated search, filters, and stats */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        {/* Table Header with Stats Bar */}
         <div className="p-6 bg-gradient-to-r from-orange-50 to-orange-100 border-b border-gray-200">
+          {/* Title and Compact Stats */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <Trophy className="w-6 h-6 text-orange-500" />
@@ -544,16 +405,66 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
                 <p className="text-sm text-gray-600">Search players and filter by job class</p>
               </div>
             </div>
-            {userRanking && (
-              <span className="text-sm text-orange-600 bg-orange-100 px-4 py-2 rounded-full font-medium">
-                Your Rank: #{userRanking.rank}
-              </span>
-            )}
+          </div>
+
+          {/* Compact Stats Bar */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            {/* Top Player */}
+            <div className="bg-white/80 backdrop-blur rounded-lg p-3 border border-orange-200/50">
+              <div className="flex items-center gap-2">
+                <Crown className="w-4 h-4 text-orange-500" />
+                <div>
+                  <p className="text-xs text-gray-600">Champion</p>
+                  <p className="text-sm font-bold text-gray-900">
+                    {rankings.length > 0 ? rankings[0].name : 'No data'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Your Rank */}
+            <div className="bg-white/80 backdrop-blur rounded-lg p-3 border border-orange-200/50">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-orange-500" />
+                <div>
+                  <p className="text-xs text-gray-600">Your Rank</p>
+                  <p className="text-sm font-bold text-gray-900">
+                    {userRanking ? `#${userRanking.rank}` : 'Not ranked'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Total Players */}
+            <div className="bg-white/80 backdrop-blur rounded-lg p-3 border border-orange-200/50">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-orange-500" />
+                <div>
+                  <p className="text-xs text-gray-600">Total Players</p>
+                  <p className="text-sm font-bold text-gray-900">
+                    {rankingPagination?.totalItems || rankings.length}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Highest Level */}
+            <div className="bg-white/80 backdrop-blur rounded-lg p-3 border border-orange-200/50">
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 text-orange-500" />
+                <div>
+                  <p className="text-xs text-gray-600">Max Level</p>
+                  <p className="text-sm font-bold text-gray-900">
+                    {rankings.length > 0 ? rankings[0].level : 'N/A'}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Search Bar */}
           <div className="mb-6">
-            <form onSubmit={handleSearchSubmit} className="flex gap-3">
+            <div className="flex gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
@@ -561,11 +472,17 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
                   placeholder="Search character name..."
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSearchSubmit(e as any);
+                    }
+                  }}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
                 />
               </div>
               <button
-                type="submit"
+                onClick={handleSearchSubmit}
                 className="px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all font-medium flex items-center gap-2 shadow-lg hover:shadow-xl"
               >
                 <Search className="w-4 h-4" />
@@ -580,7 +497,7 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
                   Clear
                 </button>
               )}
-            </form>
+            </div>
           </div>
 
           {/* Job Filter Buttons - Using actual PNG icons */}
@@ -876,6 +793,45 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
           </div>
         )}
       </div>
+
+      {/* User's Ranking Highlight - Only show when not in table and on first page */}
+      {userRanking && !rankings.some(r => r.isCurrentUser) && rankingFilters.job === 'all' && !rankingFilters.search && rankingFilters.page === 1 && (
+        <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-6 rounded-xl shadow-lg">
+          <h3 className="text-xl font-semibold mb-3 flex items-center gap-2">
+            <Crown className="w-6 h-6" />
+            Your Best Character
+          </h3>
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-white/20 rounded-lg flex items-center justify-center">
+              <MapleStoryCharacterRenderer 
+                character={{
+                  id: userRanking.id,
+                  name: userRanking.name,
+                  level: userRanking.level,
+                  job: userRanking.jobId.toString(),
+                  skincolor: userRanking.skincolor || 0,
+                  gender: userRanking.gender || 0,
+                  hair: userRanking.hair || 30000,
+                  face: userRanking.face || 20000,
+                  equipment: userRanking.equipment || {},
+                  stats: userRanking.stats || { str: 4, dex: 4, int: 4, luk: 4 },
+                  exp: userRanking.exp || 0,
+                  meso: userRanking.meso || 0
+                }}
+                scale={0.8}
+              />
+            </div>
+            <div>
+              <div className="text-2xl font-bold">#{userRanking.rank}</div>
+              <div className="text-lg">{userRanking.name}</div>
+              <div className="text-orange-100">Level {userRanking.level} {userRanking.job}</div>
+              {userRanking.guild && (
+                <div className="text-orange-200 text-sm">[{userRanking.guild}]</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pagination */}
       {rankingPagination && rankingPagination.totalPages > 1 && (

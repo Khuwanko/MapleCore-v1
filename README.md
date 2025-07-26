@@ -65,7 +65,7 @@ Create a `.env.local` file:
 # ========================================
 NEXT_PUBLIC_SERVER_NAME=MapleCore
 NEXT_PUBLIC_SERVER_VERSION=v83 #just use 83 anyversion wont work unless some database setup cosmic
-NEXT_PUBLIC_DOWNLOAD_URL=https://your-server.com/downloads/MapleCore-Client-v83.zip
+NEXT_PUBLIC_DOWNLOAD_URL=https://your-server.com/downloads/MapleCore-Client-v83.zip or any download link.
 NODE_ENV=production
 
 # ========================================

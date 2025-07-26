@@ -226,6 +226,7 @@ MapleStory community, Cosmicms, Next.js, React contributors
 
 ## 📞 Support
 - Discord: ARtistjr
-- GitHub Issues contact me discord.
+- GitHub Issues join us at MapleCore discord server
+(https://discord.gg/dHdckYGsTT)
 
 Made with ❤️ for the MapleStory community.

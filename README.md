@@ -1,10 +1,10 @@
 
-# MapleKaede CMS 🍁
+# MapleCore CMS 🍁
 A Modern, Full-Featured MapleStory v83 Private Server Website
 MapleCore discord server (https://discord.gg/dHdckYGsTT)
 
 ## 🌟 Overview
-MapleKaede CMS is a cutting-edge Content Management System built specifically for MapleStory v83 private servers. Powered by Next.js 15 and TypeScript, it delivers a premium web experience with modern features, stunning animations, and enterprise-grade security.
+MapleCore CMS is a cutting-edge Content Management System built specifically for MapleStory v83 private servers. Powered by Next.js 15 and TypeScript, it delivers a premium web experience with modern features, stunning animations, and enterprise-grade security.
 
 ## ✨ Key Features
 
@@ -46,8 +46,8 @@ MapleKaede CMS is a cutting-edge Content Management System built specifically fo
 
 ### Step 1: Clone the Repository
 ```bash
-git clone https://github.com/yourusername/maplekaede-cms.git
-cd maplekaede-cms
+git clone https://github.com/yourusername/MapleCore-cms.git
+cd MapleCore-cms
 ```
 Or download as ZIP and extract to your desired location.
 
@@ -159,7 +159,7 @@ npm run start
 
 ## 📁 Project Structure
 ```
-maplekaede/
+MapleCore/
 ├── src/
 │   ├── app/
 │   ├── components/
@@ -202,7 +202,7 @@ maplekaede/
 **Using PM2**
 ```bash
 npm install -g pm2
-pm2 start npm --name "maplekaede" -- start
+pm2 start npm --name "MapleCore" -- start
 pm2 save
 pm2 startup
 ```

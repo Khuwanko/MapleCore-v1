@@ -1,7 +1,5 @@
 
 # MapleCore CMS
-A Modern, Full-Featured MapleStory v83 Private Server Website
-MapleCore discord server (https://discord.gg/dHdckYGsTT)
 
 ## Installation Guide
 
